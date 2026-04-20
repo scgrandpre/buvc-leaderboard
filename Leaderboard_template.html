@@ -1,0 +1,1768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BUVC Leaderboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<style>
+  :root {
+    --navy: #0B1F42;
+    --navy-700: #142951;
+    --navy-600: #1b3463;
+    --sky: #6BABC6;
+    --sky-200: #cfe1ea;
+    --sky-50: #eef5f8;
+    --paper: #f6f4ef;
+    --ink: #0B1F42;
+    --ink-soft: #3b4a66;
+    --line: rgba(11, 31, 66, 0.10);
+    --gold: #d4a52a;
+    --silver: #a9b4c2;
+    --bronze: #b87333;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--paper); color: var(--ink); font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  body { min-height: 100vh; }
+  button { font-family: inherit; cursor: pointer; border: 0; background: none; color: inherit; }
+  select, input { font-family: inherit; color: inherit; }
+
+  .display { font-family: 'Anton', 'Oswald', sans-serif; letter-spacing: 0.01em; text-transform: uppercase; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  .tabular { font-variant-numeric: tabular-nums; }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: rgba(11,31,66,0.18); border-radius: 8px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(11,31,66,0.32); }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  /* Fallback spinner */
+  #boot { position: fixed; inset: 0; display: grid; place-items: center; background: var(--paper); z-index: 100; }
+  #boot .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sky); animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 0.4;} 50% { transform: scale(1.4); opacity: 1;} }
+</style>
+</head>
+<body>
+<template id="__bundler_thumbnail">
+  <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <rect width="200" height="200" fill="#0B1F42"/>
+    <path d="M100 40 L150 52 L150 108 Q150 136 100 156 Q50 136 50 108 L50 52 Z" fill="#142951" stroke="#6BABC6" stroke-width="2"/>
+    <text x="100" y="92" text-anchor="middle" font-family="Anton, Oswald, Impact, sans-serif" font-weight="900" font-size="22" fill="#ffffff" letter-spacing="1">BUVC</text>
+    <circle cx="100" cy="124" r="16" fill="#ffffff" stroke="#0B1F42" stroke-width="1.5"/>
+    <path d="M100 108 Q92 124 100 140 M100 108 Q108 124 100 140 M84 124 Q100 118 116 124 M84 124 Q100 130 116 124" stroke="#0B1F42" stroke-width="1.4" fill="none"/>
+  </svg>
+</template>
+<div id="boot"><div class="dot"></div></div>
+<div id="root"></div>
+
+<script>window.__BUVC_DATA__ = __BUVC_DATA_PLACEHOLDER__;</script>
+
+<script>
+  // ============ TWEAKS (persisted via host) ============
+  window.__TWEAKS__ = /*EDITMODE-BEGIN*/{
+    "direction": "editorial",
+    "showMedals": true,
+    "showPodium": true,
+    "density": "comfortable"
+  }/*EDITMODE-END*/;
+</script>
+
+<script type="text/babel">
+// shared.jsx — data shape, helpers, shared components
+
+// ============ DATA PROCESSING ============
+// Flatten all players from allTeams[]
+const RAW_TEAMS = window.__BUVC_DATA__ || [];
+
+// Generate friendly display names for players (jersey numbers only in source)
+// Map jersey → a pool of plausible Boston-y first names; for now, show jersey + team clearly.
+const ALL_PLAYERS = [];
+let __pidx = 0;
+RAW_TEAMS.forEach(t => {
+  t.players.forEach(p => {
+    // Skip ghost/empty players with zero activity across the board
+    const hasActivity = (p.K || 0) + (p.SA || 0) + (p.DIG || 0) + (p.Serve_TA || 0) + (p.TA || 0) > 0;
+    ALL_PLAYERS.push({
+      id: `${p.team}-${p.jersey}-${__pidx++}`,
+      jersey: String(p.jersey || '').trim(),
+      name: p.name || `#${p.jersey}`,
+      team: p.team,
+      gender: p.gender,
+      age: String(p.age),
+      ageLabel: `${p.age}U`,
+      K: +p.K || 0,
+      E: +p.E || 0,
+      TA: +p.TA || 0,
+      ATK: +p.ATK_ || 0,
+      ATK_PCT: +p['ATK%'] || 0,
+      KILL_PCT: +p['KILL%'] || 0,
+      KPS: +p['K/S'] || 0,
+      K_Set: +p['K/Set'] || 0,
+      SA: +p.SA || 0,
+      SE: +p.SE || 0,
+      Serve_TA: +p.Serve_TA || 0,
+      Serve_PCT: +p.Serve_PCT || 0,
+      DIG: +p.DIG || 0,
+      SETS: +p.SETS || 0,
+      D_Set: +p['D/Set'] || 0,
+      _active: hasActivity,
+    });
+  });
+});
+
+const TEAMS = Array.from(new Set(ALL_PLAYERS.map(p => p.team))).sort();
+const AGES = Array.from(new Set(ALL_PLAYERS.map(p => p.age))).sort();
+
+// ============ CATEGORIES ============
+// Used for leader tabs and top-3 podium
+const CATEGORIES = [
+  { id: 'kills',    label: 'Kills',      short: 'K',    stat: 'K',         fmt: v => Math.round(v), subStat: 'K_Set',    subLabel: 'K/SET',    subFmt: v => v.toFixed(2) },
+  { id: 'kset',     label: 'Kills/Set',  short: 'K/S',  stat: 'K_Set',     fmt: v => v.toFixed(2),  subStat: 'K',        subLabel: 'TOTAL K',  subFmt: v => Math.round(v), minSets: 3 },
+  { id: 'attack',   label: 'Attack %',   short: 'ATK%', stat: 'ATK_PCT',   fmt: v => (v*100).toFixed(1)+'%', subStat: 'TA', subLabel: 'ATTEMPTS', subFmt: v => Math.round(v), minAtk: 20 },
+  { id: 'aces',     label: 'Aces',       short: 'SA',   stat: 'SA',        fmt: v => Math.round(v), subStat: 'Serve_PCT', subLabel: 'SERVE %', subFmt: v => (v*100).toFixed(0)+'%' },
+  { id: 'serve',    label: 'Serve %',    short: 'SRV%', stat: 'Serve_PCT', fmt: v => (v*100).toFixed(1)+'%', subStat: 'Serve_TA', subLabel: 'ATTEMPTS', subFmt: v => Math.round(v), minSrv: 15 },
+  { id: 'digs',     label: 'Digs',       short: 'DIG',  stat: 'DIG',       fmt: v => Math.round(v), subStat: 'D_Set',    subLabel: 'D/SET',    subFmt: v => v.toFixed(2) },
+];
+
+function qualifyPlayer(p, cat) {
+  if (cat.minSets && p.SETS < cat.minSets) return false;
+  if (cat.minAtk && p.TA < cat.minAtk) return false;
+  if (cat.minSrv && p.Serve_TA < cat.minSrv) return false;
+  return true;
+}
+
+function leadersFor(cat, players, limit = 20) {
+  return players
+    .filter(p => p._active && qualifyPlayer(p, cat))
+    .slice()
+    .sort((a,b) => (b[cat.stat] || 0) - (a[cat.stat] || 0))
+    .slice(0, limit);
+}
+
+// Team aggregates
+function aggregateTeams(players) {
+  const m = {};
+  players.forEach(p => {
+    const k = `${p.team}|${p.gender}|${p.age}`;
+    if (!m[k]) m[k] = {
+      id: k, team: p.team, gender: p.gender, age: p.age, ageLabel: `${p.age}U`,
+      K:0, SA:0, DIG:0, SE:0, E:0, TA:0, Serve_TA:0, sets:0, players: []
+    };
+    const t = m[k];
+    t.players.push(p);
+    t.K += p.K; t.SA += p.SA; t.DIG += p.DIG;
+    t.SE += p.SE; t.E += p.E; t.TA += p.TA; t.Serve_TA += p.Serve_TA;
+    t.sets = Math.max(t.sets, p.SETS);
+  });
+  return Object.values(m).map(t => ({
+    ...t,
+    K_Set: t.sets > 0 ? t.K / t.sets : 0,
+    A_Set: t.sets > 0 ? t.SA / t.sets : 0,
+    D_Set: t.sets > 0 ? t.DIG / t.sets : 0,
+    ATK_PCT: t.TA > 0 ? (t.K - t.E) / t.TA : 0,
+    Serve_PCT: t.Serve_TA > 0 ? (t.Serve_TA - t.SE) / t.Serve_TA : 0,
+  }));
+}
+
+// ============ BUVC LOGO (SVG, navy+sky shield from brand) ============
+function BUVCLogo({ size = 44, mono = false }) {
+  const navy = mono ? 'currentColor' : '#0B1F42';
+  const sky = mono ? 'currentColor' : '#6BABC6';
+  const white = mono ? 'rgba(255,255,255,0.92)' : '#ffffff';
+  return (
+    <svg width={size} height={size * 1.1} viewBox="0 0 100 110" aria-hidden="true">
+      <path d="M50 2 L92 14 L92 62 Q92 90 50 106 Q8 90 8 62 L8 14 Z" fill={navy} stroke={sky} strokeWidth="2"/>
+      <path d="M50 8 L86 18 L86 62 Q86 86 50 100 Q14 86 14 62 L14 18 Z" fill="none" stroke={sky} strokeOpacity="0.4" strokeWidth="1"/>
+      {/* stars */}
+      <g fill={white}>
+        <polygon points="30,22 32,28 38,28 33,32 35,38 30,34 25,38 27,32 22,28 28,28"/>
+        <polygon points="50,20 52,26 58,26 53,30 55,36 50,32 45,36 47,30 42,26 48,26"/>
+        <polygon points="70,22 72,28 78,28 73,32 75,38 70,34 65,38 67,32 62,28 68,28"/>
+      </g>
+      <text x="50" y="54" textAnchor="middle" fontFamily="Anton, Oswald" fontWeight="900" fontSize="14" fill={white} letterSpacing="0.5">BUVC</text>
+      {/* volleyball */}
+      <circle cx="50" cy="78" r="13" fill={white} stroke={navy} strokeWidth="1.5"/>
+      <path d="M50 65 Q 44 78 50 91 M50 65 Q 56 78 50 91 M37 78 Q 50 72 63 78 M37 78 Q 50 84 63 78" stroke={navy} strokeWidth="1.2" fill="none"/>
+    </svg>
+  );
+}
+
+// ============ SMALL COMPONENTS ============
+function Chip({ children, tone = 'default', className = '', style }) {
+  const bg = {
+    default: 'rgba(11,31,66,0.06)',
+    navy: '#0B1F42',
+    sky: '#6BABC6',
+    outline: 'transparent',
+  }[tone];
+  const fg = {
+    default: '#0B1F42',
+    navy: '#ffffff',
+    sky: '#ffffff',
+    outline: '#0B1F42',
+  }[tone];
+  return (
+    <span className={className} style={{
+      display: 'inline-flex', alignItems: 'center', gap: 6,
+      padding: '3px 8px', borderRadius: 999,
+      fontSize: 10.5, fontWeight: 600, letterSpacing: '0.06em',
+      textTransform: 'uppercase',
+      background: bg, color: fg,
+      border: tone === 'outline' ? '1px solid rgba(11,31,66,0.22)' : 'none',
+      ...style
+    }}>{children}</span>
+  );
+}
+
+function JerseyAvatar({ jersey, size = 36, tone = 'navy' }) {
+  const bg = tone === 'navy' ? '#0B1F42' : tone === 'sky' ? '#6BABC6' : '#ffffff';
+  const fg = tone === 'white' ? '#0B1F42' : '#ffffff';
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%',
+      background: bg, color: fg,
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      fontFamily: 'Anton, Oswald', fontSize: size * 0.46, fontWeight: 900,
+      letterSpacing: '0.02em',
+      border: tone === 'white' ? '1.5px solid #0B1F42' : 'none',
+      flexShrink: 0,
+    }}>{String(jersey).replace(/^#/, '')}</div>
+  );
+}
+
+function MedalBadge({ rank, size = 22 }) {
+  const color = rank === 1 ? 'var(--gold)' : rank === 2 ? 'var(--silver)' : 'var(--bronze)';
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      width: size, height: size, borderRadius: '50%',
+      background: color, color: '#fff',
+      fontFamily: 'Anton, Oswald', fontSize: size * 0.55, fontWeight: 900,
+      boxShadow: 'inset 0 -2px 0 rgba(0,0,0,0.15), 0 1px 2px rgba(0,0,0,0.15)',
+    }}>{rank}</span>
+  );
+}
+
+// ============ PLAYER DETAIL MODAL ============
+function PlayerModal({ player, onClose, allPlayers }) {
+  if (!player) return null;
+  // Rank across club in each category (qualified)
+  const ranks = CATEGORIES.map(cat => {
+    const pool = allPlayers.filter(p => p._active && qualifyPlayer(p, cat))
+      .sort((a,b) => (b[cat.stat] || 0) - (a[cat.stat] || 0));
+    const idx = pool.findIndex(p => p.id === player.id);
+    return { cat, rank: idx >= 0 ? idx + 1 : null, total: pool.length, qualifies: qualifyPlayer(player, cat) };
+  });
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 500,
+        background: 'rgba(11,31,66,0.55)',
+        backdropFilter: 'blur(6px)',
+        display: 'grid', placeItems: 'center',
+        padding: 24,
+        animation: 'fadeIn 0.18s ease-out',
+      }}>
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+      `}</style>
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: 'min(720px, 100%)', maxHeight: '88vh', overflow: 'auto',
+          background: 'var(--paper)', borderRadius: 12,
+          boxShadow: '0 40px 80px -20px rgba(11,31,66,0.4)',
+          animation: 'slideUp 0.22s ease-out',
+        }}>
+        {/* Hero */}
+        <div style={{
+          background: 'linear-gradient(135deg, #0B1F42 0%, #1b3463 100%)',
+          color: 'white', padding: '28px 32px',
+          display: 'flex', alignItems: 'center', gap: 20,
+          borderRadius: '12px 12px 0 0',
+          position: 'relative', overflow: 'hidden',
+        }}>
+          <div style={{
+            position: 'absolute', right: -40, top: -40, width: 200, height: 200,
+            border: '1px solid rgba(107,171,198,0.25)', borderRadius: '50%',
+          }}/>
+          <div style={{
+            position: 'absolute', right: 20, bottom: -60, width: 150, height: 150,
+            border: '1px solid rgba(107,171,198,0.18)', borderRadius: '50%',
+          }}/>
+          <JerseyAvatar jersey={player.jersey} size={72} tone="sky"/>
+          <div style={{ flex: 1, position: 'relative' }}>
+            <div className="display" style={{ fontSize: 36, lineHeight: 1, marginBottom: 6 }}>
+              {player.name}
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Chip tone="sky" style={{ background: 'rgba(107,171,198,0.3)', color: '#fff', border: '1px solid rgba(107,171,198,0.5)' }}>{player.team}</Chip>
+              <Chip style={{ background: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}>{player.ageLabel}</Chip>
+              <Chip style={{ background: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}>{player.gender}</Chip>
+            </div>
+          </div>
+          <button onClick={onClose} style={{
+            position: 'absolute', top: 16, right: 16,
+            width: 32, height: 32, borderRadius: '50%',
+            background: 'rgba(255,255,255,0.1)', color: '#fff',
+            fontSize: 18, display: 'grid', placeItems: 'center',
+          }}>×</button>
+        </div>
+
+        {/* Stats grid */}
+        <div style={{ padding: 28 }}>
+          <div className="display" style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 12, letterSpacing: '0.08em' }}>
+            Season Totals
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 24 }}>
+            {[
+              { label: 'Kills', val: Math.round(player.K) },
+              { label: 'K/Set', val: player.K_Set.toFixed(2) },
+              { label: 'Attack %', val: (player.ATK_PCT * 100).toFixed(1) + '%' },
+              { label: 'Kill %', val: (player.KILL_PCT * 100).toFixed(0) + '%' },
+              { label: 'Aces', val: Math.round(player.SA) },
+              { label: 'Serve %', val: player.Serve_TA > 0 ? (player.Serve_PCT * 100).toFixed(0) + '%' : '—' },
+              { label: 'Digs', val: Math.round(player.DIG) },
+              { label: 'Sets', val: Math.round(player.SETS) },
+            ].map(s => (
+              <div key={s.label} style={{
+                padding: '14px 12px',
+                background: '#fff', borderRadius: 8,
+                border: '1px solid var(--line)',
+              }}>
+                <div className="display tabular" style={{ fontSize: 26, color: 'var(--navy)', lineHeight: 1 }}>{s.val}</div>
+                <div style={{ fontSize: 10, color: 'var(--ink-soft)', marginTop: 4, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="display" style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 12, letterSpacing: '0.08em' }}>
+            Club Rankings
+          </div>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {ranks.map(({ cat, rank, total, qualifies }) => {
+              const pct = rank && total ? 1 - (rank-1)/Math.max(total-1, 1) : 0;
+              return (
+                <div key={cat.id} style={{
+                  display: 'grid', gridTemplateColumns: '90px 60px 1fr 70px', alignItems: 'center',
+                  gap: 12, padding: '10px 0', borderBottom: '1px solid var(--line)',
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>{cat.label}</div>
+                  <div className="display tabular" style={{ fontSize: 20, color: rank <= 3 ? 'var(--navy)' : 'var(--ink-soft)' }}>
+                    {qualifies && rank ? `#${rank}` : '—'}
+                  </div>
+                  <div style={{ height: 6, background: 'rgba(11,31,66,0.06)', borderRadius: 3, overflow: 'hidden' }}>
+                    {qualifies && rank && (
+                      <div style={{
+                        height: '100%', width: `${Math.max(pct * 100, 2)}%`,
+                        background: rank <= 3 ? 'var(--navy)' : 'var(--sky)',
+                        borderRadius: 3, transition: 'width 0.4s',
+                      }}/>
+                    )}
+                  </div>
+                  <div className="mono" style={{ fontSize: 11, color: 'var(--ink-soft)', textAlign: 'right' }}>
+                    {qualifies ? `of ${total}` : 'N/Q'}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Expose to window
+Object.assign(window, {
+  RAW_TEAMS, ALL_PLAYERS, TEAMS, AGES, CATEGORIES,
+  qualifyPlayer, leadersFor, aggregateTeams,
+  BUVCLogo, Chip, JerseyAvatar, MedalBadge, PlayerModal,
+});
+
+</script>
+<script type="text/babel">
+// editorial.jsx — Direction 1: editorial / magazine leaderboard
+
+function EditorialDirection({ filters, onFilter, onSelect }) {
+  const [view, setView] = React.useState('individual'); // individual | team
+  const [catId, setCatId] = React.useState('kills');
+  const [sortCol, setSortCol] = React.useState('K');
+  const [sortDir, setSortDir] = React.useState('desc');
+
+  const cat = CATEGORIES.find(c => c.id === catId);
+
+  // Filter pipeline
+  const filteredPlayers = React.useMemo(() => {
+    return ALL_PLAYERS.filter(p => {
+      if (filters.gender !== 'Both' && p.gender !== filters.gender) return false;
+      if (filters.age && p.age !== filters.age) return false;
+      if (filters.team && p.team !== filters.team) return false;
+      if (filters.search) {
+        const s = filters.search.toLowerCase();
+        if (!p.name.toLowerCase().includes(s) && !p.team.toLowerCase().includes(s)) return false;
+      }
+      return true;
+    });
+  }, [filters]);
+
+  // Top 3 podium for selected category
+  const podium = React.useMemo(() => {
+    return leadersFor(cat, filteredPlayers, 3);
+  }, [cat, filteredPlayers]);
+
+  // Table rows
+  const tableData = React.useMemo(() => {
+    if (view === 'team') {
+      const teams = aggregateTeams(filteredPlayers);
+      return teams.sort((a,b) => {
+        const dir = sortDir === 'asc' ? 1 : -1;
+        const av = a[sortCol], bv = b[sortCol];
+        if (typeof av === 'string') return av.localeCompare(bv) * dir;
+        return ((av||0) - (bv||0)) * dir;
+      });
+    }
+    return filteredPlayers.filter(p => p._active).slice().sort((a,b) => {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      const av = a[sortCol], bv = b[sortCol];
+      if (typeof av === 'string') return av.localeCompare(bv) * dir;
+      return ((av||0) - (bv||0)) * dir;
+    });
+  }, [view, filteredPlayers, sortCol, sortDir]);
+
+  const sortBy = (col) => {
+    if (sortCol === col) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('desc'); }
+  };
+
+  // Max values for in-cell bars
+  const maxK = Math.max(1, ...filteredPlayers.map(p => p.K));
+
+  return (
+    <div style={{ background: 'var(--paper)', minHeight: '100vh' }}>
+      {/* ===== MASTHEAD ===== */}
+      <Masthead />
+
+      {/* ===== CATEGORY TABS ===== */}
+      <div style={{
+        borderBottom: '1px solid var(--line)',
+        background: 'var(--paper)',
+        position: 'sticky', top: 0, zIndex: 20,
+        backdropFilter: 'blur(8px)',
+      }}>
+        <div style={wrap}>
+          <div style={{
+            display: 'flex', gap: 0, alignItems: 'stretch',
+            overflowX: 'auto', scrollbarWidth: 'none',
+          }}>
+            {CATEGORIES.map((c, i) => {
+              const active = c.id === catId;
+              return (
+                <button key={c.id} onClick={() => { setCatId(c.id); setSortCol(c.stat); setSortDir('desc'); }}
+                  style={{
+                    padding: '18px 22px',
+                    fontSize: 13, fontWeight: active ? 700 : 500,
+                    letterSpacing: '0.05em', textTransform: 'uppercase',
+                    color: active ? 'var(--navy)' : 'var(--ink-soft)',
+                    borderBottom: active ? '2px solid var(--navy)' : '2px solid transparent',
+                    marginBottom: -1,
+                    whiteSpace: 'nowrap',
+                    transition: 'color 0.15s',
+                  }}>
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* ===== PODIUM ===== */}
+      {window.__TWEAKS__.showPodium && podium.length >= 1 && (
+        <Podium cat={cat} leaders={podium} onSelect={onSelect}/>
+      )}
+
+      {/* ===== FILTERS + TABLE ===== */}
+      <div style={{ ...wrap, paddingTop: 24, paddingBottom: 80 }}>
+        <FilterBar filters={filters} onFilter={onFilter} view={view} setView={setView} total={tableData.length}/>
+
+        <DataTable
+          view={view}
+          data={tableData}
+          cat={cat}
+          sortCol={sortCol} sortDir={sortDir} sortBy={sortBy}
+          onSelect={onSelect}
+          maxK={maxK}
+        />
+      </div>
+
+      <Footer/>
+    </div>
+  );
+}
+
+// ===== Masthead =====
+function Masthead() {
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  return (
+    <div style={{ borderBottom: '1px solid var(--line)', background: 'var(--paper)' }}>
+      {/* thin top strip */}
+      <div style={{ borderBottom: '1px solid var(--line)', padding: '8px 0', background: 'var(--navy)', color: '#fff' }}>
+        <div style={{ ...wrap, display: 'flex', justifyContent: 'space-between', fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 500 }}>
+          <span>Boston United Volleyball Club</span>
+          <span>2025–26 Club Season</span>
+          <span className="mono">{today}</span>
+        </div>
+      </div>
+      {/* main masthead */}
+      <div style={{ ...wrap, padding: '36px 32px 28px', display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 24 }}>
+        <BUVCLogo size={68}/>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 11, letterSpacing: '0.25em', color: 'var(--sky)', fontWeight: 700, marginBottom: 4 }}>VOL. XXVI · NO. 4</div>
+          <h1 className="display" style={{ fontSize: 'clamp(40px, 5vw, 68px)', lineHeight: 0.95, color: 'var(--navy)', letterSpacing: '0.01em' }}>
+            The Leaderboard
+          </h1>
+          <div style={{ fontSize: 12, letterSpacing: '0.2em', color: 'var(--ink-soft)', fontWeight: 500, marginTop: 6, textTransform: 'uppercase' }}>
+            Every Player · Every Team · Every Stat
+          </div>
+        </div>
+        <div style={{ textAlign: 'right', fontSize: 11, color: 'var(--ink-soft)', letterSpacing: '0.05em' }}>
+          <div className="display" style={{ fontSize: 20, color: 'var(--navy)', letterSpacing: 0 }}>{ALL_PLAYERS.filter(p=>p._active).length}</div>
+          <div style={{ textTransform: 'uppercase', fontWeight: 600 }}>Active Players</div>
+          <div className="display" style={{ fontSize: 20, color: 'var(--navy)', marginTop: 8, letterSpacing: 0 }}>{TEAMS.length}</div>
+          <div style={{ textTransform: 'uppercase', fontWeight: 600 }}>Teams</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===== Podium =====
+function Podium({ cat, leaders, onSelect }) {
+  if (!leaders.length) return null;
+  const [gold, silver, bronze] = leaders;
+  // Order visually: silver, gold, bronze so gold is tallest/centered
+  const positions = [
+    { p: silver, rank: 2, height: 220, tone: 'var(--silver)' },
+    { p: gold, rank: 1, height: 280, tone: 'var(--gold)' },
+    { p: bronze, rank: 3, height: 180, tone: 'var(--bronze)' },
+  ].filter(x => x.p);
+
+  return (
+    <div style={{ background: 'var(--navy)', color: '#fff', padding: '48px 0 0', position: 'relative', overflow: 'hidden' }}>
+      {/* decorative circles */}
+      <div style={{ position: 'absolute', left: -120, top: -120, width: 400, height: 400, border: '1px solid rgba(107,171,198,0.14)', borderRadius: '50%' }}/>
+      <div style={{ position: 'absolute', right: -80, bottom: -160, width: 320, height: 320, border: '1px solid rgba(107,171,198,0.14)', borderRadius: '50%' }}/>
+
+      <div style={{ ...wrap, position: 'relative' }}>
+        <div style={{ textAlign: 'center', marginBottom: 36 }}>
+          <div style={{ fontSize: 11, letterSpacing: '0.3em', color: 'var(--sky)', fontWeight: 700, marginBottom: 8 }}>LEADERS · {cat.label.toUpperCase()}</div>
+          <h2 className="display" style={{ fontSize: 'clamp(32px, 4vw, 48px)', lineHeight: 1 }}>
+            Top of the Club
+          </h2>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, alignItems: 'end', maxWidth: 920, margin: '0 auto' }}>
+          {positions.map(({ p, rank, height, tone }) => (
+            <button key={p.id} onClick={() => onSelect(p)} style={{
+              textAlign: 'left', display: 'block', height,
+              background: rank === 1 ? 'linear-gradient(180deg, rgba(107,171,198,0.15) 0%, rgba(107,171,198,0.04) 100%)' : 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(107,171,198,0.22)',
+              borderTop: `3px solid ${tone}`,
+              padding: '20px 18px',
+              display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+              transition: 'transform 0.2s, border-color 0.2s',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.borderColor = 'rgba(107,171,198,0.5)'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = 'rgba(107,171,198,0.22)'; }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div className="display" style={{ fontSize: 56, color: tone, lineHeight: 0.8 }}>
+                  {String(rank).padStart(2, '0')}
+                </div>
+                {window.__TWEAKS__.showMedals && <MedalBadge rank={rank} size={28}/>}
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <JerseyAvatar jersey={p.jersey} size={32} tone="sky"/>
+                  <div className="display" style={{ fontSize: 22, color: '#fff', letterSpacing: 0.5, lineHeight: 1 }}>
+                    {p.name}
+                  </div>
+                </div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 14, letterSpacing: '0.05em' }}>
+                  {p.team} · {p.ageLabel}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, borderTop: '1px solid rgba(107,171,198,0.2)', paddingTop: 12 }}>
+                  <div className="display tabular" style={{ fontSize: 38, color: '#fff', lineHeight: 0.9 }}>
+                    {cat.fmt(p[cat.stat])}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--sky)', letterSpacing: '0.1em', fontWeight: 700, textTransform: 'uppercase' }}>
+                    {cat.short}
+                  </div>
+                </div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', marginTop: 4, letterSpacing: '0.05em' }}>
+                  {cat.subLabel}: <span className="mono">{cat.subFmt(p[cat.subStat])}</span>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+        <div style={{ height: 48 }}/>
+      </div>
+    </div>
+  );
+}
+
+// ===== Filter bar =====
+function FilterBar({ filters, onFilter, view, setView, total }) {
+  const selStyle = {
+    padding: '8px 28px 8px 12px', fontSize: 13, fontWeight: 500,
+    border: '1px solid var(--line)', background: '#fff',
+    borderRadius: 4, color: 'var(--ink)',
+    appearance: 'none',
+    backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%230B1F42' stroke-width='1.5' fill='none'/></svg>")`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 10px center',
+  };
+  return (
+    <div style={{
+      display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap',
+      padding: '20px 0', borderBottom: '1px solid var(--line)', marginBottom: 0,
+    }}>
+      {/* View toggle */}
+      <div style={{ display: 'flex', border: '1px solid var(--navy)', borderRadius: 4, overflow: 'hidden' }}>
+        {['individual', 'team'].map(v => (
+          <button key={v} onClick={() => setView(v)} style={{
+            padding: '8px 16px', fontSize: 12, fontWeight: 600,
+            textTransform: 'uppercase', letterSpacing: '0.08em',
+            background: view === v ? 'var(--navy)' : 'transparent',
+            color: view === v ? '#fff' : 'var(--navy)',
+          }}>{v === 'individual' ? 'Players' : 'Teams'}</button>
+        ))}
+      </div>
+
+      <div style={{ width: 1, height: 24, background: 'var(--line)' }}/>
+
+      <select value={filters.gender} onChange={e => onFilter({ ...filters, gender: e.target.value })} style={selStyle}>
+        <option value="Both">All · Gender</option>
+        <option value="Boys">Boys</option>
+        <option value="Girls">Girls</option>
+      </select>
+      <select value={filters.age} onChange={e => onFilter({ ...filters, age: e.target.value })} style={selStyle}>
+        <option value="">All · Age</option>
+        {AGES.map(a => <option key={a} value={a}>{a}U</option>)}
+      </select>
+      <select value={filters.team} onChange={e => onFilter({ ...filters, team: e.target.value })} style={selStyle}>
+        <option value="">All · Teams</option>
+        {TEAMS.map(t => <option key={t} value={t}>{t}</option>)}
+      </select>
+
+      <div style={{ position: 'relative' }}>
+        <svg width="14" height="14" viewBox="0 0 16 16" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}>
+          <circle cx="7" cy="7" r="5" fill="none" stroke="#0B1F42" strokeWidth="1.5"/>
+          <path d="M11 11l4 4" stroke="#0B1F42" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+        <input
+          placeholder="Search player or team"
+          value={filters.search}
+          onChange={e => onFilter({ ...filters, search: e.target.value })}
+          style={{
+            padding: '8px 12px 8px 30px', fontSize: 13,
+            border: '1px solid var(--line)', background: '#fff',
+            borderRadius: 4, color: 'var(--ink)', width: 220,
+          }}
+        />
+      </div>
+
+      <div style={{ flex: 1 }}/>
+      <div className="mono" style={{ fontSize: 11, color: 'var(--ink-soft)', letterSpacing: '0.05em' }}>
+        {total} {view === 'individual' ? 'players' : 'teams'}
+      </div>
+    </div>
+  );
+}
+
+// ===== Data table =====
+function DataTable({ view, data, cat, sortCol, sortDir, sortBy, onSelect, maxK }) {
+  const cols = view === 'individual' ? [
+    { id: 'rank', label: '#', w: 48, sortable: false, align: 'left' },
+    { id: 'name', label: 'Player', sortable: true, align: 'left', stat: 'name' },
+    { id: 'team', label: 'Team', sortable: true, align: 'left', stat: 'team' },
+    { id: 'age', label: 'Age', w: 56, sortable: true, align: 'left', stat: 'age' },
+    { id: 'K', label: 'Kills', w: 92, sortable: true, align: 'right', stat: 'K', bar: true },
+    { id: 'K_Set', label: 'K/Set', w: 72, sortable: true, align: 'right', stat: 'K_Set' },
+    { id: 'ATK_PCT', label: 'ATK %', w: 72, sortable: true, align: 'right', stat: 'ATK_PCT', pct: true },
+    { id: 'SA', label: 'Aces', w: 64, sortable: true, align: 'right', stat: 'SA' },
+    { id: 'Serve_PCT', label: 'Srv %', w: 72, sortable: true, align: 'right', stat: 'Serve_PCT', pct: true },
+    { id: 'DIG', label: 'Digs', w: 64, sortable: true, align: 'right', stat: 'DIG' },
+    { id: 'SETS', label: 'Sets', w: 56, sortable: true, align: 'right', stat: 'SETS' },
+  ] : [
+    { id: 'rank', label: '#', w: 48, sortable: false },
+    { id: 'team', label: 'Team', sortable: true, align: 'left', stat: 'team' },
+    { id: 'age', label: 'Age', w: 56, sortable: true, align: 'left', stat: 'age' },
+    { id: 'gender', label: 'Gender', w: 72, sortable: true, align: 'left', stat: 'gender' },
+    { id: 'K', label: 'Kills', w: 80, sortable: true, align: 'right', stat: 'K', bar: true },
+    { id: 'K_Set', label: 'K/Set', w: 72, sortable: true, align: 'right', stat: 'K_Set' },
+    { id: 'SA', label: 'Aces', w: 72, sortable: true, align: 'right', stat: 'SA' },
+    { id: 'DIG', label: 'Digs', w: 72, sortable: true, align: 'right', stat: 'DIG' },
+    { id: 'sets', label: 'Sets', w: 64, sortable: true, align: 'right', stat: 'sets' },
+    { id: 'players', label: 'Players', w: 72, sortable: false, align: 'right' },
+  ];
+
+  const showMedals = window.__TWEAKS__.showMedals;
+
+  return (
+    <div style={{
+      background: '#fff', border: '1px solid var(--line)', borderRadius: 4,
+      marginTop: 20, overflow: 'hidden',
+    }}>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: 'var(--navy)', color: '#fff' }}>
+              {cols.map(c => (
+                <th key={c.id} onClick={() => c.sortable && sortBy(c.stat)}
+                  style={{
+                    padding: '14px 12px', width: c.w, textAlign: c.align || 'left',
+                    fontSize: 10.5, fontWeight: 700, letterSpacing: '0.1em',
+                    textTransform: 'uppercase', cursor: c.sortable ? 'pointer' : 'default',
+                    whiteSpace: 'nowrap', position: 'relative',
+                    userSelect: 'none',
+                  }}>
+                  {c.label}
+                  {c.sortable && c.stat === sortCol && (
+                    <span style={{ marginLeft: 4, color: 'var(--sky)' }}>
+                      {sortDir === 'asc' ? '↑' : '↓'}
+                    </span>
+                  )}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.length === 0 && (
+              <tr><td colSpan={cols.length} style={{ padding: 40, textAlign: 'center', color: 'var(--ink-soft)' }}>No data matches these filters.</td></tr>
+            )}
+            {data.map((row, i) => (
+              <tr key={row.id || `${row.team}-${i}`}
+                onClick={() => view === 'individual' && onSelect(row)}
+                style={{
+                  borderBottom: '1px solid var(--line)',
+                  cursor: view === 'individual' ? 'pointer' : 'default',
+                  background: i % 2 === 1 ? 'rgba(11,31,66,0.02)' : 'transparent',
+                  transition: 'background 0.12s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--sky-50)'}
+                onMouseLeave={e => e.currentTarget.style.background = i % 2 === 1 ? 'rgba(11,31,66,0.02)' : 'transparent'}
+              >
+                {cols.map(c => {
+                  let content;
+                  const val = row[c.stat];
+                  if (c.id === 'rank') {
+                    const r = i + 1;
+                    content = showMedals && r <= 3
+                      ? <MedalBadge rank={r} size={22}/>
+                      : <span className="display tabular" style={{ fontSize: 16, color: 'var(--ink-soft)' }}>{r}</span>;
+                  } else if (c.id === 'name') {
+                    content = (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <JerseyAvatar jersey={row.jersey} size={28}/>
+                        <span className="display" style={{ fontSize: 16, color: 'var(--navy)', letterSpacing: 0.3 }}>{row.name}</span>
+                      </div>
+                    );
+                  } else if (c.id === 'team' && view === 'individual') {
+                    content = <span style={{ fontSize: 13, color: 'var(--ink)' }}>{row.team}</span>;
+                  } else if (c.id === 'team' && view === 'team') {
+                    content = <span className="display" style={{ fontSize: 16, color: 'var(--navy)' }}>{row.team}</span>;
+                  } else if (c.id === 'age') {
+                    content = <Chip tone="outline">{row.ageLabel || `${row.age}U`}</Chip>;
+                  } else if (c.id === 'gender') {
+                    content = <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{row.gender}</span>;
+                  } else if (c.id === 'players') {
+                    content = <span className="tabular" style={{ fontSize: 13 }}>{row.players.length}</span>;
+                  } else if (c.bar) {
+                    const pct = Math.min(val / maxK, 1);
+                    content = (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+                        <div style={{ width: 48, height: 4, background: 'rgba(11,31,66,0.06)', borderRadius: 2 }}>
+                          <div style={{ width: `${pct*100}%`, height: '100%', background: 'var(--navy)', borderRadius: 2 }}/>
+                        </div>
+                        <span className="display tabular" style={{ fontSize: 16, color: 'var(--navy)', minWidth: 28 }}>{Math.round(val)}</span>
+                      </div>
+                    );
+                  } else if (c.pct) {
+                    content = <span className="mono tabular" style={{ fontSize: 12, color: val > 0 ? 'var(--ink)' : 'var(--ink-soft)' }}>{val > 0 ? (val*100).toFixed(1)+'%' : '—'}</span>;
+                  } else if (c.stat === 'K_Set' || c.stat === 'D_Set' || c.stat === 'A_Set') {
+                    content = <span className="mono tabular" style={{ fontSize: 12 }}>{(val||0).toFixed(2)}</span>;
+                  } else {
+                    content = <span className="mono tabular" style={{ fontSize: 12 }}>{Math.round(val || 0)}</span>;
+                  }
+                  return <td key={c.id} style={{ padding: '10px 12px', textAlign: c.align || 'left' }}>{content}</td>;
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function Footer() {
+  return (
+    <div style={{ borderTop: '1px solid var(--line)', padding: '28px 0', background: 'var(--paper)' }}>
+      <div style={{ ...wrap, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--ink-soft)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+        <span>© Boston United Volleyball Club</span>
+        <span>Stats compiled from Hudl exports</span>
+      </div>
+    </div>
+  );
+}
+
+const wrap = {
+  maxWidth: 1280, margin: '0 auto', padding: '0 32px',
+};
+
+Object.assign(window, { EditorialDirection });
+
+</script>
+<script type="text/babel">
+// cards.jsx — Direction 2: trading-card hybrid
+
+function CardsDirection({ filters, onFilter, onSelect }) {
+  const [view, setView] = React.useState('individual');
+  const [catId, setCatId] = React.useState('kills');
+  const [sortDesc, setSortDesc] = React.useState(true);
+
+  const cat = CATEGORIES.find(c => c.id === catId);
+
+  const filteredPlayers = React.useMemo(() => {
+    return ALL_PLAYERS.filter(p => {
+      if (filters.gender !== 'Both' && p.gender !== filters.gender) return false;
+      if (filters.age && p.age !== filters.age) return false;
+      if (filters.team && p.team !== filters.team) return false;
+      if (filters.search) {
+        const s = filters.search.toLowerCase();
+        if (!p.name.toLowerCase().includes(s) && !p.team.toLowerCase().includes(s)) return false;
+      }
+      return p._active;
+    });
+  }, [filters]);
+
+  const sorted = React.useMemo(() => {
+    return filteredPlayers
+      .filter(p => qualifyPlayer(p, cat))
+      .slice()
+      .sort((a,b) => {
+        const d = sortDesc ? -1 : 1;
+        return ((a[cat.stat] || 0) - (b[cat.stat] || 0)) * d;
+      });
+  }, [filteredPlayers, cat, sortDesc]);
+
+  const top3 = sorted.slice(0, 3);
+  const rest = sorted.slice(3);
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#F2EFE8' }}>
+      {/* ===== HERO HEADER ===== */}
+      <div style={{
+        background: 'linear-gradient(180deg, #0B1F42 0%, #142951 100%)',
+        color: '#fff', position: 'relative', overflow: 'hidden',
+      }}>
+        {/* court line pattern */}
+        <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.08 }} preserveAspectRatio="none" viewBox="0 0 1000 400">
+          <defs>
+            <pattern id="courtLines" x="0" y="0" width="100" height="100" patternUnits="userSpaceOnUse">
+              <path d="M0 0 L100 0 L100 100 L0 100 Z" fill="none" stroke="#6BABC6" strokeWidth="0.5"/>
+            </pattern>
+          </defs>
+          <rect width="1000" height="400" fill="url(#courtLines)"/>
+          <line x1="500" y1="0" x2="500" y2="400" stroke="#6BABC6" strokeWidth="2"/>
+        </svg>
+
+        <div style={{ ...wrap2, padding: '32px 24px 24px', position: 'relative', display: 'flex', alignItems: 'center', gap: 20 }}>
+          <BUVCLogo size={64}/>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.3em', color: 'var(--sky)', fontWeight: 700 }}>BOSTON UNITED · 2025–26</div>
+            <h1 className="display" style={{ fontSize: 'clamp(40px, 6vw, 72px)', lineHeight: 0.9, letterSpacing: 0.5 }}>LEADERBOARD</h1>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div className="display" style={{ fontSize: 48, color: 'var(--sky)', lineHeight: 0.9 }}>{ALL_PLAYERS.filter(p=>p._active).length}</div>
+            <div style={{ fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase', opacity: 0.7 }}>Players Tracked</div>
+          </div>
+        </div>
+
+        {/* category pills */}
+        <div style={{ ...wrap2, padding: '4px 24px 28px', position: 'relative' }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {CATEGORIES.map(c => {
+              const active = c.id === catId;
+              return (
+                <button key={c.id} onClick={() => setCatId(c.id)} style={{
+                  padding: '10px 18px', borderRadius: 999,
+                  fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                  background: active ? 'var(--sky)' : 'transparent',
+                  color: active ? '#0B1F42' : '#fff',
+                  border: active ? '1px solid var(--sky)' : '1px solid rgba(107,171,198,0.4)',
+                  transition: 'all 0.15s',
+                }}>{c.label}</button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ ...wrap2, padding: '40px 24px' }}>
+
+        {/* ===== TRADING CARDS TOP 3 ===== */}
+        {window.__TWEAKS__.showPodium && top3.length > 0 && (
+          <div style={{ marginBottom: 48 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 20 }}>
+              <h2 className="display" style={{ fontSize: 28, color: 'var(--navy)' }}>
+                {cat.label} Leaders
+              </h2>
+              <div className="mono" style={{ fontSize: 11, color: 'var(--ink-soft)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                Season to date
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
+              {top3.map((p, i) => (
+                <TradingCard key={p.id} player={p} rank={i + 1} cat={cat} onSelect={onSelect}/>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ===== FILTER BAR ===== */}
+        <div style={{
+          display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap',
+          background: '#fff', padding: 14, borderRadius: 12,
+          border: '1px solid var(--line)',
+          boxShadow: '0 1px 2px rgba(11,31,66,0.04)',
+          marginBottom: 20,
+        }}>
+          <div style={{ display: 'flex', gap: 6, background: '#F2EFE8', padding: 4, borderRadius: 8 }}>
+            {['individual', 'team'].map(v => (
+              <button key={v} onClick={() => setView(v)} style={{
+                padding: '7px 14px', fontSize: 12, fontWeight: 700,
+                textTransform: 'uppercase', letterSpacing: '0.08em',
+                background: view === v ? 'var(--navy)' : 'transparent',
+                color: view === v ? '#fff' : 'var(--navy)',
+                borderRadius: 6,
+              }}>{v === 'individual' ? 'Players' : 'Teams'}</button>
+            ))}
+          </div>
+
+          <PillSelect value={filters.gender} onChange={v => onFilter({ ...filters, gender: v })}
+            options={[['Both','All Genders'], ['Boys','Boys'], ['Girls','Girls']]}/>
+          <PillSelect value={filters.age} onChange={v => onFilter({ ...filters, age: v })}
+            options={[['', 'All Ages'], ...AGES.map(a => [a, `${a}U`])]}/>
+          <PillSelect value={filters.team} onChange={v => onFilter({ ...filters, team: v })}
+            options={[['', 'All Teams'], ...TEAMS.map(t => [t, t])]}/>
+
+          <div style={{ position: 'relative', flex: 1, minWidth: 160 }}>
+            <svg width="14" height="14" viewBox="0 0 16 16" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}>
+              <circle cx="7" cy="7" r="5" fill="none" stroke="#0B1F42" strokeWidth="1.5"/>
+              <path d="M11 11l4 4" stroke="#0B1F42" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            <input placeholder="Search…" value={filters.search}
+              onChange={e => onFilter({ ...filters, search: e.target.value })}
+              style={{
+                width: '100%', padding: '9px 12px 9px 34px', fontSize: 13,
+                background: '#F2EFE8', border: 'none', borderRadius: 8, color: 'var(--ink)',
+              }}/>
+          </div>
+
+          <button onClick={() => setSortDesc(!sortDesc)} style={{
+            padding: '8px 12px', background: '#F2EFE8', borderRadius: 8, fontSize: 12, fontWeight: 600,
+            color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            {sortDesc ? '↓ High to low' : '↑ Low to high'}
+          </button>
+        </div>
+
+        {/* ===== CARD GRID ===== */}
+        {view === 'individual' ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+            {rest.map((p, i) => (
+              <CompactCard key={p.id} player={p} rank={i + 4} cat={cat} onSelect={onSelect}/>
+            ))}
+            {rest.length === 0 && top3.length === 0 && (
+              <div style={{ gridColumn: '1 / -1', padding: 40, textAlign: 'center', color: 'var(--ink-soft)' }}>No players match these filters.</div>
+            )}
+          </div>
+        ) : (
+          <TeamGrid teams={aggregateTeams(filteredPlayers)} cat={cat} sortDesc={sortDesc}/>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ===== Trading Card (top 3) =====
+function TradingCard({ player, rank, cat, onSelect }) {
+  const rankColor = rank === 1 ? 'var(--gold)' : rank === 2 ? 'var(--silver)' : 'var(--bronze)';
+  return (
+    <button onClick={() => onSelect(player)} style={{
+      display: 'block', textAlign: 'left', width: '100%',
+      background: 'linear-gradient(180deg, #0B1F42 0%, #1b3463 100%)',
+      color: '#fff', borderRadius: 16, overflow: 'hidden', position: 'relative',
+      border: `2px solid ${rankColor}`,
+      boxShadow: '0 10px 30px -10px rgba(11,31,66,0.4)',
+      transition: 'transform 0.2s, box-shadow 0.2s',
+      cursor: 'pointer',
+    }}
+    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 20px 40px -10px rgba(11,31,66,0.5)'; }}
+    onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 10px 30px -10px rgba(11,31,66,0.4)'; }}
+    >
+      {/* corner rank */}
+      <div style={{
+        position: 'absolute', top: 12, left: 12, zIndex: 2,
+        display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        {window.__TWEAKS__.showMedals && <MedalBadge rank={rank} size={28}/>}
+        <div className="display" style={{ fontSize: 14, color: rankColor, letterSpacing: '0.1em' }}>
+          RANK {String(rank).padStart(2,'0')}
+        </div>
+      </div>
+
+      {/* category tag top right */}
+      <div style={{ position: 'absolute', top: 14, right: 14, zIndex: 2 }}>
+        <div style={{
+          padding: '4px 10px', borderRadius: 999,
+          background: 'rgba(107,171,198,0.25)', border: '1px solid var(--sky)',
+          fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--sky)',
+        }}>{cat.short}</div>
+      </div>
+
+      {/* jersey number as hero background */}
+      <div style={{
+        padding: '60px 20px 16px', textAlign: 'center', position: 'relative',
+      }}>
+        <div className="display" style={{
+          position: 'absolute', inset: 0,
+          fontSize: 220, lineHeight: 1, color: 'rgba(107,171,198,0.08)',
+          display: 'grid', placeItems: 'center', pointerEvents: 'none',
+        }}>
+          {String(player.jersey).replace(/^#/,'')}
+        </div>
+        <JerseyAvatar jersey={player.jersey} size={72} tone="sky"/>
+      </div>
+
+      <div style={{ padding: '0 24px 20px', position: 'relative' }}>
+        <div className="display" style={{ fontSize: 28, letterSpacing: 0.5, lineHeight: 1, marginBottom: 6 }}>
+          {player.name}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--sky)', marginBottom: 14, letterSpacing: '0.05em' }}>
+          {player.team} · {player.ageLabel} · {player.gender}
+        </div>
+
+        {/* primary stat */}
+        <div style={{
+          background: 'rgba(107,171,198,0.12)', border: '1px solid rgba(107,171,198,0.3)',
+          padding: '14px 16px', borderRadius: 12, marginBottom: 10,
+          display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+        }}>
+          <div>
+            <div className="display tabular" style={{ fontSize: 44, lineHeight: 0.9, color: '#fff' }}>
+              {cat.fmt(player[cat.stat])}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--sky)', letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 700, marginTop: 4 }}>
+              {cat.label}
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div className="mono tabular" style={{ fontSize: 14, color: '#fff' }}>
+              {cat.subFmt(player[cat.subStat])}
+            </div>
+            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 2 }}>
+              {cat.subLabel}
+            </div>
+          </div>
+        </div>
+
+        {/* quick stats row */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0, fontSize: 11, borderTop: '1px solid rgba(107,171,198,0.2)', paddingTop: 10 }}>
+          {[
+            { l: 'K', v: Math.round(player.K) },
+            { l: 'SA', v: Math.round(player.SA) },
+            { l: 'DIG', v: Math.round(player.DIG) },
+            { l: 'SETS', v: Math.round(player.SETS) },
+          ].map((s, i) => (
+            <div key={s.l} style={{ textAlign: 'center', borderRight: i < 3 ? '1px solid rgba(107,171,198,0.2)' : 'none' }}>
+              <div className="display tabular" style={{ fontSize: 18, color: '#fff' }}>{s.v}</div>
+              <div style={{ fontSize: 9, color: 'var(--sky)', letterSpacing: '0.1em', fontWeight: 700 }}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// ===== Compact card (rest) =====
+function CompactCard({ player, rank, cat, onSelect }) {
+  return (
+    <button onClick={() => onSelect(player)} style={{
+      display: 'block', textAlign: 'left', width: '100%',
+      background: '#fff', borderRadius: 12, overflow: 'hidden',
+      border: '1px solid var(--line)', padding: 14,
+      transition: 'border-color 0.15s, transform 0.15s',
+      cursor: 'pointer',
+    }}
+    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--sky)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+        <div className="display tabular" style={{ fontSize: 22, color: 'var(--ink-soft)', minWidth: 32 }}>
+          {String(rank).padStart(2,'0')}
+        </div>
+        <JerseyAvatar jersey={player.jersey} size={36}/>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="display" style={{ fontSize: 16, color: 'var(--navy)', letterSpacing: 0.3, lineHeight: 1 }}>
+            {player.name}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {player.team} · {player.ageLabel}
+          </div>
+        </div>
+      </div>
+      <div style={{
+        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+        padding: '10px 0 0', borderTop: '1px solid var(--line)',
+      }}>
+        <div>
+          <div className="display tabular" style={{ fontSize: 28, color: 'var(--navy)', lineHeight: 0.9 }}>
+            {cat.fmt(player[cat.stat])}
+          </div>
+          <div style={{ fontSize: 9, color: 'var(--ink-soft)', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, marginTop: 3 }}>
+            {cat.label}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div className="mono tabular" style={{ fontSize: 13, color: 'var(--navy)' }}>
+            {cat.subFmt(player[cat.subStat])}
+          </div>
+          <div style={{ fontSize: 9, color: 'var(--ink-soft)', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 2 }}>
+            {cat.subLabel}
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// ===== Team Grid =====
+function TeamGrid({ teams, cat, sortDesc }) {
+  const teamStat = cat.stat in { K:1, SA:1, DIG:1, K_Set:1, Serve_PCT:1, ATK_PCT:1 } ? cat.stat : 'K';
+  const sorted = teams.slice().sort((a,b) => ((a[teamStat]||0) - (b[teamStat]||0)) * (sortDesc ? -1 : 1));
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+      {sorted.map((t, i) => (
+        <div key={t.id} style={{
+          background: '#fff', borderRadius: 12, padding: 16, border: '1px solid var(--line)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <div className="display tabular" style={{ fontSize: 22, color: 'var(--ink-soft)' }}>{String(i+1).padStart(2,'0')}</div>
+            <div style={{ flex: 1 }}>
+              <div className="display" style={{ fontSize: 17, color: 'var(--navy)' }}>{t.team}</div>
+              <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>{t.ageLabel} · {t.gender} · {t.players.length} players</div>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, paddingTop: 10, borderTop: '1px solid var(--line)' }}>
+            {[
+              { l: 'KILLS', v: Math.round(t.K) },
+              { l: 'K/SET', v: t.K_Set.toFixed(2) },
+              { l: 'ACES', v: Math.round(t.SA) },
+              { l: 'DIGS', v: Math.round(t.DIG) },
+            ].map(s => (
+              <div key={s.l} style={{ textAlign: 'center' }}>
+                <div className="display tabular" style={{ fontSize: 18, color: 'var(--navy)' }}>{s.v}</div>
+                <div style={{ fontSize: 9, color: 'var(--ink-soft)', letterSpacing: '0.1em', fontWeight: 700, marginTop: 2 }}>{s.l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ===== Pill Select =====
+function PillSelect({ value, onChange, options }) {
+  return (
+    <div style={{ position: 'relative' }}>
+      <select value={value} onChange={e => onChange(e.target.value)} style={{
+        padding: '8px 30px 8px 14px', borderRadius: 999,
+        background: '#F2EFE8', border: 'none', fontSize: 12, fontWeight: 600,
+        color: 'var(--navy)', letterSpacing: '0.03em', appearance: 'none',
+        backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%230B1F42' stroke-width='1.5' fill='none'/></svg>")`,
+        backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center',
+        cursor: 'pointer',
+      }}>
+        {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+      </select>
+    </div>
+  );
+}
+
+const wrap2 = { maxWidth: 1280, margin: '0 auto' };
+
+Object.assign(window, { CardsDirection });
+
+</script>
+<script type="text/babel">
+// broadcast.jsx — Direction 3: dark broadcast-style dashboard
+
+function BroadcastDirection({ filters, onFilter, onSelect }) {
+  const [view, setView] = React.useState('individual');
+  const [catId, setCatId] = React.useState('kills');
+  const [sortCol, setSortCol] = React.useState('K');
+  const [sortDir, setSortDir] = React.useState('desc');
+
+  const cat = CATEGORIES.find(c => c.id === catId);
+
+  const filteredPlayers = React.useMemo(() => {
+    return ALL_PLAYERS.filter(p => {
+      if (filters.gender !== 'Both' && p.gender !== filters.gender) return false;
+      if (filters.age && p.age !== filters.age) return false;
+      if (filters.team && p.team !== filters.team) return false;
+      if (filters.search) {
+        const s = filters.search.toLowerCase();
+        if (!p.name.toLowerCase().includes(s) && !p.team.toLowerCase().includes(s)) return false;
+      }
+      return p._active;
+    });
+  }, [filters]);
+
+  const catLeaders = React.useMemo(() => leadersFor(cat, filteredPlayers, 10), [cat, filteredPlayers]);
+
+  const tableRows = React.useMemo(() => {
+    if (view === 'team') {
+      return aggregateTeams(filteredPlayers).sort((a,b) => {
+        const d = sortDir === 'asc' ? 1 : -1;
+        const av = a[sortCol], bv = b[sortCol];
+        if (typeof av === 'string') return av.localeCompare(bv) * d;
+        return ((av||0) - (bv||0)) * d;
+      });
+    }
+    return filteredPlayers.slice().sort((a,b) => {
+      const d = sortDir === 'asc' ? 1 : -1;
+      const av = a[sortCol], bv = b[sortCol];
+      if (typeof av === 'string') return av.localeCompare(bv) * d;
+      return ((av||0) - (bv||0)) * d;
+    });
+  }, [filteredPlayers, view, sortCol, sortDir]);
+
+  const sortBy = (col) => {
+    if (sortCol === col) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('desc'); }
+  };
+
+  // Ticker items: top leader in each category
+  const ticker = React.useMemo(() => CATEGORIES.map(c => {
+    const top = leadersFor(c, filteredPlayers, 1)[0];
+    return top ? { cat: c, top } : null;
+  }).filter(Boolean), [filteredPlayers]);
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#05101F', color: '#E8EEF4', fontFamily: 'Inter' }}>
+      {/* ===== TOP BAR ===== */}
+      <div style={{
+        background: 'linear-gradient(90deg, #0B1F42 0%, #142951 100%)',
+        borderBottom: '1px solid rgba(107,171,198,0.25)',
+        padding: '14px 24px', display: 'flex', alignItems: 'center', gap: 20,
+      }}>
+        <BUVCLogo size={40}/>
+        <div>
+          <div className="display" style={{ fontSize: 22, letterSpacing: 0.5, color: '#fff' }}>BUVC LEADERBOARD</div>
+          <div style={{ fontSize: 10, letterSpacing: '0.3em', color: 'var(--sky)', fontWeight: 700 }}>LIVE · 2025–26 CLUB SEASON</div>
+        </div>
+        <div style={{ flex: 1 }}/>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '8px 14px', borderRadius: 999,
+          background: 'rgba(107,171,198,0.15)', border: '1px solid rgba(107,171,198,0.35)',
+        }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f43' , animation: 'pulse 1.2s infinite' }}/>
+          <span style={{ fontSize: 11, letterSpacing: '0.15em', fontWeight: 700, color: '#fff' }}>ON AIR</span>
+        </div>
+        <style>{`
+          @keyframes pulse { 0%,100% { opacity: 0.4;} 50% { opacity: 1;} }
+          @keyframes tickerSlide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        `}</style>
+      </div>
+
+      {/* ===== TICKER ===== */}
+      <div style={{
+        background: '#0B1F42', borderBottom: '1px solid rgba(107,171,198,0.25)',
+        overflow: 'hidden', position: 'relative', height: 36,
+      }}>
+        <div style={{
+          position: 'absolute', left: 0, top: 0, bottom: 0, width: 90, zIndex: 2,
+          background: 'var(--sky)', color: '#0B1F42',
+          display: 'grid', placeItems: 'center',
+          fontSize: 11, fontWeight: 800, letterSpacing: '0.12em',
+          clipPath: 'polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%)',
+        }}>LEADERS</div>
+        <div style={{
+          display: 'flex', gap: 40, whiteSpace: 'nowrap',
+          animation: 'tickerSlide 60s linear infinite',
+          paddingLeft: 100, paddingTop: 10, width: 'fit-content',
+        }}>
+          {[...ticker, ...ticker].map((it, i) => (
+            <div key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+              <span style={{ color: 'var(--sky)', fontWeight: 700, letterSpacing: '0.1em' }}>{it.cat.short}</span>
+              <span style={{ color: '#fff', fontWeight: 600 }}>{it.top.name}</span>
+              <span style={{ color: 'rgba(255,255,255,0.55)' }}>{it.top.team}</span>
+              <span className="mono" style={{ color: '#fff' }}>{it.cat.fmt(it.top[it.cat.stat])}</span>
+              <span style={{ color: 'rgba(107,171,198,0.5)' }}>•</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ===== FILTER/CONTROL BAR ===== */}
+      <div style={{
+        display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap',
+        padding: '14px 24px', borderBottom: '1px solid rgba(107,171,198,0.18)',
+        background: '#081629',
+      }}>
+        <div style={{ display: 'flex', border: '1px solid rgba(107,171,198,0.3)', borderRadius: 6, overflow: 'hidden' }}>
+          {['individual', 'team'].map(v => (
+            <button key={v} onClick={() => setView(v)} style={{
+              padding: '7px 14px', fontSize: 11, fontWeight: 700,
+              textTransform: 'uppercase', letterSpacing: '0.1em',
+              background: view === v ? 'var(--sky)' : 'transparent',
+              color: view === v ? '#0B1F42' : '#E8EEF4',
+            }}>{v === 'individual' ? 'Players' : 'Teams'}</button>
+          ))}
+        </div>
+
+        <DarkSelect value={filters.gender} onChange={v => onFilter({ ...filters, gender: v })}
+          options={[['Both','Any Gender'], ['Boys','Boys'], ['Girls','Girls']]}/>
+        <DarkSelect value={filters.age} onChange={v => onFilter({ ...filters, age: v })}
+          options={[['', 'Any Age'], ...AGES.map(a => [a, `${a}U`])]}/>
+        <DarkSelect value={filters.team} onChange={v => onFilter({ ...filters, team: v })}
+          options={[['', 'Any Team'], ...TEAMS.map(t => [t, t])]}/>
+
+        <div style={{ position: 'relative' }}>
+          <svg width="14" height="14" viewBox="0 0 16 16" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', opacity: 0.6 }}>
+            <circle cx="7" cy="7" r="5" fill="none" stroke="#6BABC6" strokeWidth="1.5"/>
+            <path d="M11 11l4 4" stroke="#6BABC6" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+          <input placeholder="Search…" value={filters.search}
+            onChange={e => onFilter({ ...filters, search: e.target.value })}
+            style={{
+              padding: '7px 10px 7px 30px', fontSize: 12, width: 180,
+              background: 'rgba(107,171,198,0.08)',
+              border: '1px solid rgba(107,171,198,0.3)', borderRadius: 6,
+              color: '#E8EEF4',
+            }}/>
+        </div>
+
+        <div style={{ flex: 1 }}/>
+
+        {/* category pills */}
+        <div style={{ display: 'flex', gap: 4 }}>
+          {CATEGORIES.map(c => {
+            const active = c.id === catId;
+            return (
+              <button key={c.id} onClick={() => { setCatId(c.id); setSortCol(c.stat); setSortDir('desc'); }} style={{
+                padding: '6px 12px', fontSize: 11, fontWeight: 700,
+                letterSpacing: '0.08em', textTransform: 'uppercase', borderRadius: 4,
+                background: active ? 'var(--sky)' : 'transparent',
+                color: active ? '#0B1F42' : 'rgba(232,238,244,0.75)',
+                border: '1px solid ' + (active ? 'var(--sky)' : 'rgba(107,171,198,0.25)'),
+              }}>{c.short}</button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ===== MAIN GRID ===== */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 380px) 1fr', gap: 0, minHeight: 'calc(100vh - 150px)' }}>
+
+        {/* ===== LEFT: TOP 10 LEADERS ===== */}
+        <div style={{
+          borderRight: '1px solid rgba(107,171,198,0.15)',
+          background: '#071425', padding: '20px 20px 40px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div>
+              <div className="display" style={{ fontSize: 22, color: '#fff', letterSpacing: 0.3 }}>{cat.label}</div>
+              <div style={{ fontSize: 10, color: 'var(--sky)', letterSpacing: '0.2em', fontWeight: 700 }}>TOP 10 · CLUB-WIDE</div>
+            </div>
+          </div>
+
+          {window.__TWEAKS__.showPodium && (
+            <div style={{ display: 'grid', gap: 6 }}>
+              {catLeaders.map((p, i) => {
+                const rank = i + 1;
+                const maxVal = catLeaders[0] ? catLeaders[0][cat.stat] : 1;
+                const pct = (p[cat.stat] || 0) / (maxVal || 1);
+                const isTop = rank <= 3;
+                return (
+                  <button key={p.id} onClick={() => onSelect(p)} style={{
+                    display: 'block', textAlign: 'left', width: '100%',
+                    padding: '10px 12px', borderRadius: 6,
+                    background: isTop ? 'rgba(107,171,198,0.08)' : 'transparent',
+                    border: '1px solid ' + (isTop ? 'rgba(107,171,198,0.25)' : 'rgba(107,171,198,0.08)'),
+                    cursor: 'pointer', transition: 'background 0.15s',
+                    position: 'relative', overflow: 'hidden',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,171,198,0.15)'}
+                  onMouseLeave={e => e.currentTarget.style.background = isTop ? 'rgba(107,171,198,0.08)' : 'transparent'}
+                  >
+                    {/* bar background */}
+                    <div style={{
+                      position: 'absolute', left: 0, top: 0, bottom: 0,
+                      width: `${pct * 100}%`,
+                      background: 'linear-gradient(90deg, rgba(107,171,198,0.15) 0%, rgba(107,171,198,0.02) 100%)',
+                      pointerEvents: 'none',
+                    }}/>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
+                      {window.__TWEAKS__.showMedals && isTop ? (
+                        <MedalBadge rank={rank} size={22}/>
+                      ) : (
+                        <div className="display tabular" style={{
+                          fontSize: 16, width: 22, textAlign: 'center',
+                          color: 'rgba(232,238,244,0.55)',
+                        }}>{rank}</div>
+                      )}
+                      <JerseyAvatar jersey={p.jersey} size={28} tone="sky"/>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="display" style={{ fontSize: 14, color: '#fff', letterSpacing: 0.2, lineHeight: 1.1 }}>
+                          {p.name}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'rgba(232,238,244,0.55)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {p.team} · {p.ageLabel}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div className="display tabular" style={{ fontSize: 18, color: 'var(--sky)', lineHeight: 1 }}>
+                          {cat.fmt(p[cat.stat])}
+                        </div>
+                        <div className="mono" style={{ fontSize: 9, color: 'rgba(232,238,244,0.5)', letterSpacing: '0.05em' }}>
+                          {cat.subFmt(p[cat.subStat])} {cat.subLabel}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+              {catLeaders.length === 0 && (
+                <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'rgba(232,238,244,0.5)' }}>No qualifiers.</div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ===== RIGHT: FULL TABLE ===== */}
+        <div style={{ padding: '20px 24px 40px', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div>
+              <div className="display" style={{ fontSize: 22, color: '#fff' }}>{view === 'individual' ? 'All Players' : 'All Teams'}</div>
+              <div style={{ fontSize: 10, color: 'var(--sky)', letterSpacing: '0.2em', fontWeight: 700 }}>
+                {tableRows.length} ENTRIES · SORTED BY {sortCol.toUpperCase()} {sortDir === 'desc' ? '↓' : '↑'}
+              </div>
+            </div>
+          </div>
+
+          <BroadcastTable view={view} data={tableRows} sortCol={sortCol} sortDir={sortDir} sortBy={sortBy} onSelect={onSelect}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BroadcastTable({ view, data, sortCol, sortDir, sortBy, onSelect }) {
+  const cols = view === 'individual' ? [
+    { id: 'rank', l: '#', w: 40, sortable: false },
+    { id: 'name', l: 'Player', stat: 'name', align: 'left' },
+    { id: 'team', l: 'Team', stat: 'team', align: 'left' },
+    { id: 'age', l: 'AGE', stat: 'age', w: 50 },
+    { id: 'K', l: 'K', stat: 'K', w: 56, align: 'right' },
+    { id: 'K_Set', l: 'K/S', stat: 'K_Set', w: 56, align: 'right' },
+    { id: 'ATK_PCT', l: 'ATK%', stat: 'ATK_PCT', w: 62, align: 'right', pct: true },
+    { id: 'SA', l: 'SA', stat: 'SA', w: 48, align: 'right' },
+    { id: 'Serve_PCT', l: 'SRV%', stat: 'Serve_PCT', w: 62, align: 'right', pct: true },
+    { id: 'DIG', l: 'DIG', stat: 'DIG', w: 56, align: 'right' },
+    { id: 'SETS', l: 'SETS', stat: 'SETS', w: 50, align: 'right' },
+  ] : [
+    { id: 'rank', l: '#', w: 40, sortable: false },
+    { id: 'team', l: 'Team', stat: 'team', align: 'left' },
+    { id: 'age', l: 'AGE', stat: 'age', w: 50 },
+    { id: 'gender', l: 'G', stat: 'gender', w: 50 },
+    { id: 'K', l: 'KILLS', stat: 'K', w: 72, align: 'right' },
+    { id: 'K_Set', l: 'K/S', stat: 'K_Set', w: 56, align: 'right' },
+    { id: 'SA', l: 'ACES', stat: 'SA', w: 64, align: 'right' },
+    { id: 'DIG', l: 'DIGS', stat: 'DIG', w: 64, align: 'right' },
+    { id: 'sets', l: 'SETS', stat: 'sets', w: 56, align: 'right' },
+  ];
+
+  return (
+    <div style={{
+      border: '1px solid rgba(107,171,198,0.2)', borderRadius: 6, overflow: 'hidden',
+      background: '#081629',
+    }}>
+      <div style={{ overflowX: 'auto', maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
+            <tr style={{ background: '#0B1F42', borderBottom: '2px solid var(--sky)' }}>
+              {cols.map(c => (
+                <th key={c.id} onClick={() => c.sortable !== false && c.stat && sortBy(c.stat)}
+                  style={{
+                    padding: '10px 10px', width: c.w, textAlign: c.align || 'left',
+                    fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
+                    color: sortCol === c.stat ? 'var(--sky)' : 'rgba(232,238,244,0.7)',
+                    cursor: c.sortable !== false ? 'pointer' : 'default',
+                    whiteSpace: 'nowrap', userSelect: 'none',
+                  }}>
+                  {c.l}{c.sortable !== false && sortCol === c.stat && (sortDir === 'desc' ? ' ↓' : ' ↑')}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((row, i) => {
+              const showMedal = window.__TWEAKS__.showMedals && i < 3;
+              return (
+                <tr key={row.id || `${row.team}-${i}`}
+                  onClick={() => view === 'individual' && onSelect(row)}
+                  style={{
+                    borderBottom: '1px solid rgba(107,171,198,0.08)',
+                    background: i % 2 === 0 ? 'transparent' : 'rgba(107,171,198,0.03)',
+                    cursor: view === 'individual' ? 'pointer' : 'default',
+                    transition: 'background 0.12s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,171,198,0.1)'}
+                  onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'rgba(107,171,198,0.03)'}
+                >
+                  {cols.map(c => {
+                    let content;
+                    const val = row[c.stat];
+                    if (c.id === 'rank') {
+                      content = showMedal
+                        ? <MedalBadge rank={i+1} size={18}/>
+                        : <span className="display tabular" style={{ fontSize: 13, color: 'rgba(232,238,244,0.55)' }}>{i+1}</span>;
+                    } else if (c.id === 'name') {
+                      content = (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <JerseyAvatar jersey={row.jersey} size={22} tone="sky"/>
+                          <span className="display" style={{ fontSize: 13, color: '#fff', letterSpacing: 0.2 }}>{row.name}</span>
+                        </div>
+                      );
+                    } else if (c.id === 'team' && view === 'individual') {
+                      content = <span style={{ fontSize: 11, color: 'rgba(232,238,244,0.75)' }}>{row.team}</span>;
+                    } else if (c.id === 'team' && view === 'team') {
+                      content = <span className="display" style={{ fontSize: 14, color: '#fff' }}>{row.team}</span>;
+                    } else if (c.id === 'age') {
+                      content = <span className="mono" style={{ fontSize: 11, color: 'var(--sky)' }}>{row.ageLabel}</span>;
+                    } else if (c.id === 'gender') {
+                      content = <span className="mono" style={{ fontSize: 11, color: 'rgba(232,238,244,0.7)' }}>{row.gender === 'Boys' ? 'M' : 'F'}</span>;
+                    } else if (c.pct) {
+                      content = <span className="mono tabular" style={{ fontSize: 11, color: val > 0 ? '#fff' : 'rgba(232,238,244,0.35)' }}>{val > 0 ? (val*100).toFixed(1)+'%' : '—'}</span>;
+                    } else if (c.stat === 'K_Set' || c.stat === 'D_Set' || c.stat === 'A_Set') {
+                      content = <span className="mono tabular" style={{ fontSize: 11, color: '#fff' }}>{(val||0).toFixed(2)}</span>;
+                    } else {
+                      const isSorted = sortCol === c.stat;
+                      content = <span className="display tabular" style={{ fontSize: 14, color: isSorted ? 'var(--sky)' : '#fff' }}>{Math.round(val || 0)}</span>;
+                    }
+                    return <td key={c.id} style={{ padding: '8px 10px', textAlign: c.align || 'left' }}>{content}</td>;
+                  })}
+                </tr>
+              );
+            })}
+            {data.length === 0 && (
+              <tr><td colSpan={cols.length} style={{ padding: 40, textAlign: 'center', color: 'rgba(232,238,244,0.5)' }}>No results match filters.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function DarkSelect({ value, onChange, options }) {
+  return (
+    <select value={value} onChange={e => onChange(e.target.value)} style={{
+      padding: '7px 26px 7px 12px', fontSize: 12, fontWeight: 600,
+      background: 'rgba(107,171,198,0.08)',
+      border: '1px solid rgba(107,171,198,0.3)', borderRadius: 6,
+      color: '#E8EEF4', letterSpacing: '0.02em', appearance: 'none',
+      backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%236BABC6' stroke-width='1.5' fill='none'/></svg>")`,
+      backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center',
+      cursor: 'pointer',
+    }}>
+      {options.map(([v, l]) => <option key={v} value={v} style={{ background: '#0B1F42' }}>{l}</option>)}
+    </select>
+  );
+}
+
+Object.assign(window, { BroadcastDirection });
+
+</script>
+<script type="text/babel">
+// app.jsx — root app, direction switching, tweaks, modal state
+
+function App() {
+  const [tweaks, setTweaks] = React.useState(window.__TWEAKS__);
+  const [editMode, setEditMode] = React.useState(false);
+  const [selectedPlayer, setSelectedPlayer] = React.useState(null);
+  const [filters, setFilters] = React.useState({
+    gender: 'Both', age: '', team: '', search: '',
+  });
+
+  // Keep global tweaks synced so other components reading window.__TWEAKS__ see updates
+  React.useEffect(() => { window.__TWEAKS__ = tweaks; }, [tweaks]);
+
+  // Edit-mode host protocol — listener FIRST, then announce
+  React.useEffect(() => {
+    const onMsg = (e) => {
+      const d = e.data || {};
+      if (d.type === '__activate_edit_mode') setEditMode(true);
+      if (d.type === '__deactivate_edit_mode') setEditMode(false);
+    };
+    window.addEventListener('message', onMsg);
+    window.parent?.postMessage({ type: '__edit_mode_available' }, '*');
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  const updateTweak = (partial) => {
+    const next = { ...tweaks, ...partial };
+    setTweaks(next);
+    window.parent?.postMessage({ type: '__edit_mode_set_keys', edits: partial }, '*');
+  };
+
+  // Restore localStorage
+  React.useEffect(() => {
+    try {
+      const saved = localStorage.getItem('buvc_direction');
+      if (saved && ['editorial','cards','broadcast'].includes(saved)) {
+        setTweaks(t => ({ ...t, direction: saved }));
+      }
+    } catch {}
+  }, []);
+  React.useEffect(() => {
+    try { localStorage.setItem('buvc_direction', tweaks.direction); } catch {}
+  }, [tweaks.direction]);
+
+  const Dir = tweaks.direction === 'cards' ? CardsDirection
+           : tweaks.direction === 'broadcast' ? BroadcastDirection
+           : EditorialDirection;
+
+  return (
+    <>
+      <Dir
+        filters={filters}
+        onFilter={setFilters}
+        onSelect={setSelectedPlayer}
+      />
+      {selectedPlayer && (
+        <PlayerModal
+          player={selectedPlayer}
+          onClose={() => setSelectedPlayer(null)}
+          allPlayers={ALL_PLAYERS}
+        />
+      )}
+      {editMode && <TweaksPanel tweaks={tweaks} onChange={updateTweak}/>}
+    </>
+  );
+}
+
+function TweaksPanel({ tweaks, onChange }) {
+  return (
+    <div style={{
+      position: 'fixed', right: 16, bottom: 16, zIndex: 1000,
+      width: 280, background: '#fff', borderRadius: 12,
+      boxShadow: '0 20px 50px -10px rgba(11,31,66,0.3), 0 0 0 1px rgba(11,31,66,0.08)',
+      overflow: 'hidden', fontFamily: 'Inter',
+    }}>
+      <div style={{
+        padding: '12px 16px', background: '#0B1F42', color: '#fff',
+        display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#6BABC6' }}/>
+        <span className="display" style={{ fontSize: 14, letterSpacing: '0.12em' }}>TWEAKS</span>
+      </div>
+      <div style={{ padding: 16 }}>
+        <TweakGroup label="Design Direction">
+          <div style={{ display: 'grid', gap: 6 }}>
+            {[
+              { id: 'editorial', label: 'Editorial · Magazine' },
+              { id: 'cards', label: 'Cards · Trading' },
+              { id: 'broadcast', label: 'Broadcast · Dark' },
+            ].map(opt => (
+              <button key={opt.id} onClick={() => onChange({ direction: opt.id })} style={{
+                padding: '10px 12px', borderRadius: 6, textAlign: 'left', fontSize: 12, fontWeight: 600,
+                background: tweaks.direction === opt.id ? '#0B1F42' : '#f4f3ee',
+                color: tweaks.direction === opt.id ? '#fff' : '#0B1F42',
+                border: '1px solid ' + (tweaks.direction === opt.id ? '#0B1F42' : 'rgba(11,31,66,0.1)'),
+              }}>{opt.label}</button>
+            ))}
+          </div>
+        </TweakGroup>
+
+        <TweakGroup label="Show Medals on Top 3">
+          <Toggle checked={tweaks.showMedals} onChange={v => onChange({ showMedals: v })}/>
+        </TweakGroup>
+
+        <TweakGroup label="Show Podium / Leaders">
+          <Toggle checked={tweaks.showPodium} onChange={v => onChange({ showPodium: v })}/>
+        </TweakGroup>
+      </div>
+    </div>
+  );
+}
+
+function TweakGroup({ label, children }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{
+        fontSize: 10, color: '#0B1F42', opacity: 0.7, letterSpacing: '0.12em', textTransform: 'uppercase',
+        fontWeight: 700, marginBottom: 8,
+      }}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function Toggle({ checked, onChange }) {
+  return (
+    <button onClick={() => onChange(!checked)} style={{
+      width: 44, height: 24, borderRadius: 12, position: 'relative',
+      background: checked ? '#0B1F42' : 'rgba(11,31,66,0.15)',
+      transition: 'background 0.15s',
+    }}>
+      <span style={{
+        position: 'absolute', top: 2, left: checked ? 22 : 2,
+        width: 20, height: 20, borderRadius: '50%', background: '#fff',
+        transition: 'left 0.18s',
+        boxShadow: '0 1px 3px rgba(11,31,66,0.3)',
+      }}/>
+    </button>
+  );
+}
+
+// Mount
+const bootEl = document.getElementById('boot');
+if (bootEl) bootEl.remove();
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+
+</script>
+
+</body>
+</html>
