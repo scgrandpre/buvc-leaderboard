@@ -99,28 +99,34 @@ def patch_source(src: str) -> tuple[str, list[str]]:
         src = src.replace(REMAP_ANCHOR, REMAP_INSERTION, 1)
         notes.append("remapper extended with SR_TA")
 
-    # 3) Extend qualifyPlayer to recognize 'sr' and 'sets', and add a
-    # min-sets floor for all rate-based categories.
-    if "const minSets = M.minSets" in src:
-        notes.append("qualifyPlayer already has min-sets floor")
-    elif QUAL_ANCHOR in src:
-        src = src.replace(QUAL_ANCHOR, QUAL_INSERTION, 1)
-        notes.append("qualifyPlayer: added sr/sets + min-sets floor")
-    elif "cat.qual === 'sr'" in src:
-        # Previous iteration added sr/sets but no minSets floor — retrofit.
-        old_qp = (
-            "if (cat.qual === 'srv') return (p.Serve_TA || 0) >= M.srv * sets;\n"
-            "  if (cat.qual === 'sr')  return (p.SR_TA || 0) >= (M.sr ?? 1.0) * sets;\n"
-            "  if (cat.qual === 'sets') return sets >= (M.minSets ?? 10);\n"
-            "  return true;\n"
-            "}"
-        )
-        if old_qp in src:
-            src = src.replace(old_qp, QUAL_INSERTION.strip().replace(
-                "  if (cat.qual === 'atk') return (p.TA || 0) >= M.atk * sets;",
-                "if (cat.qual === 'atk') return (p.TA || 0) >= M.atk * sets;",
-            ), 1)
-            notes.append("qualifyPlayer: retrofit min-sets floor")
+    # 3) Replace the entire qualifyPlayer function with a canonical version.
+    # (Earlier incremental patches produced duplicate `atk` checks that
+    # short-circuited before the minSets floor could apply.)
+    CANONICAL_QP = (
+        "function qualifyPlayer(p, cat) {\n"
+        "  const M = minsForCat(cat);\n"
+        "  if (!M.enabled) return true;\n"
+        "  if (!cat || !cat.qual) return true;\n"
+        "  const sets = p.SETS || 0;\n"
+        "  if (sets <= 0) return false;\n"
+        "  // All rate-based categories require a minimum sets-played floor.\n"
+        "  const minSets = M.minSets ?? 10;\n"
+        "  if (sets < minSets) return false;\n"
+        "  if (cat.qual === 'atk')  return (p.TA || 0)       >= M.atk * sets;\n"
+        "  if (cat.qual === 'srv')  return (p.Serve_TA || 0) >= M.srv * sets;\n"
+        "  if (cat.qual === 'sr')   return (p.SR_TA || 0)    >= (M.sr ?? 1.0) * sets;\n"
+        "  if (cat.qual === 'sets') return true; // already gated by minSets above\n"
+        "  return true;\n"
+        "}"
+    )
+    qp_re = re.compile(r"function qualifyPlayer\(p, cat\) \{[\s\S]*?\n\}\n", re.MULTILINE)
+    m2 = qp_re.search(src)
+    if m2:
+        if m2.group(0).rstrip() == CANONICAL_QP:
+            notes.append("qualifyPlayer already canonical")
+        else:
+            src = src[:m2.start()] + CANONICAL_QP + "\n" + src[m2.end():]
+            notes.append("qualifyPlayer: replaced with canonical form")
 
     # 4) Extend minsForCat defaults
     if "sr: T.minSrPerSet" in src:
