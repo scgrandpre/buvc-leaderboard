@@ -129,6 +129,26 @@ def patch_source(src: str) -> tuple[str, list[str]]:
         src = src.replace(MIN_ANCHOR, MIN_INSERTION, 1)
         notes.append("minsForCat extended with sr/minSets")
 
+    # 5) Also apply qualifyPlayer to the All Players table paths (was
+    # only applied to the podium/leaders path). These are the 2 main
+    # patterns in each direction blob.
+    patterns = [
+        (r"\bfilteredPlayers\.filter\(p => p\._active\)\.slice\(\)\.sort\(",
+         "filteredPlayers.filter(p => p._active && qualifyPlayer(p, cat)).slice().sort("),
+        (r"\bfilteredPlayers\.slice\(\)\.filter\(p => p\._active\)\.sort\(",
+         "filteredPlayers.slice().filter(p => p._active && qualifyPlayer(p, cat)).sort("),
+        (r"view === 'individual' \? filteredPlayers\.filter\(p => p\._active\) : aggregateTeams\(filteredPlayers\)",
+         "view === 'individual' ? filteredPlayers.filter(p => p._active && qualifyPlayer(p, cat)) : aggregateTeams(filteredPlayers)"),
+    ]
+    applied = 0
+    for pat, repl in patterns:
+        new_src, n = re.subn(pat, repl, src)
+        if n:
+            applied += n
+            src = new_src
+    if applied:
+        notes.append(f"tableData: qualifier applied ({applied} site{'s' if applied>1 else ''})")
+
     return src, notes
 
 
