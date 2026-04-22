@@ -18,7 +18,6 @@ NEW_CATEGORIES = r"""const CATEGORIES = [
   { id: 'dset',     label: 'Digs/Set',   short: 'D/S',  stat: 'D_Set',     fmt: v => v.toFixed(2),  subStat: 'DIG',      subLabel: 'TOTAL DIG', subFmt: v => Math.round(v), qual: 'sets' },
   { id: 'attack',   label: 'Attack %',   short: 'ATK%', stat: 'ATK_PCT',   fmt: v => (v*100).toFixed(1)+'%', subStat: 'TA', subLabel: 'ATTEMPTS', subFmt: v => Math.round(v), qual: 'atk' },
   { id: 'serve',    label: 'Serve %',    short: 'SRV%', stat: 'Serve_PCT', fmt: v => (v*100).toFixed(1)+'%', subStat: 'Serve_TA', subLabel: 'ATTEMPTS', subFmt: v => Math.round(v), qual: 'srv' },
-  { id: 'passpct',  label: 'Pass Rating',short: 'PASS', stat: 'PASS_PCT',  fmt: v => v.toFixed(2),           subStat: 'SR_TA',    subLabel: 'RECEPTIONS', subFmt: v => Math.round(v), qual: 'sr' },
   { id: 'all',      label: 'All Stats',  short: 'ALL',  stat: 'K',         fmt: v => Math.round(v), subStat: 'SETS',     subLabel: 'SETS',     subFmt: v => Math.round(v), isAll: true },
 ];"""
 
