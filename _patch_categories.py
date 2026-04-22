@@ -129,6 +129,28 @@ def patch_source(src: str) -> tuple[str, list[str]]:
         src = src.replace(MIN_ANCHOR, MIN_INSERTION, 1)
         notes.append("minsForCat extended with sr/minSets")
 
+    # 4.5) Extend the compact table columns to include D/S, A/S and PASS.
+    old_cols_individual = (
+        "    { id: 'SA', l: 'SA', stat: 'SA', w: 48, align: 'right' },\n"
+        "    { id: 'Serve_PCT', l: 'SRV%', stat: 'Serve_PCT', w: 62, align: 'right', pct: true },\n"
+        "    { id: 'DIG', l: 'DIG', stat: 'DIG', w: 56, align: 'right' },\n"
+        "    { id: 'SETS', l: 'SETS', stat: 'SETS', w: 50, align: 'right' },"
+    )
+    new_cols_individual = (
+        "    { id: 'SA', l: 'SA', stat: 'SA', w: 48, align: 'right' },\n"
+        "    { id: 'SA_Set', l: 'A/S', stat: 'SA_Set', w: 56, align: 'right' },\n"
+        "    { id: 'Serve_PCT', l: 'SRV%', stat: 'Serve_PCT', w: 62, align: 'right', pct: true },\n"
+        "    { id: 'PASS_PCT', l: 'PASS', stat: 'PASS_PCT', w: 56, align: 'right' },\n"
+        "    { id: 'DIG', l: 'DIG', stat: 'DIG', w: 56, align: 'right' },\n"
+        "    { id: 'D_Set', l: 'D/S', stat: 'D_Set', w: 56, align: 'right' },\n"
+        "    { id: 'SETS', l: 'SETS', stat: 'SETS', w: 50, align: 'right' },"
+    )
+    if new_cols_individual.split("\n")[1] in src:
+        pass  # already expanded
+    elif old_cols_individual in src:
+        src = src.replace(old_cols_individual, new_cols_individual, 1)
+        notes.append("compact table: added A/S, PASS, D/S columns")
+
     # 5) Also apply qualifyPlayer to the All Players table paths (was
     # only applied to the podium/leaders path). These are the 2 main
     # patterns in each direction blob.
