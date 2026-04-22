@@ -30,35 +30,12 @@ import sys
 
 
 # ----- Club registry ------------------------------------------------------
-# For each club: export folder (data), template file, output file, and how
-# data gets injected ('placeholder' or 'club_blob').
+# Imported from clubs.py at the project root (single source of truth shared
+# with hudl_stats_exporter.py).
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PARENT_DIR = os.path.dirname(SCRIPT_DIR)
-
-CLUBS = {
-    "buvc": {
-        "label":        "BUVC (Boston United)",
-        "export_dir":   os.path.join(PARENT_DIR, "hudl_exports"),
-        # Blob-patching mode: read a frozen copy of the live broadcast
-        # bundle and replace the allTeams array inside window.__BUVC_DATA__.
-        "template":     os.path.join(SCRIPT_DIR, "BUVC_Leaderboard_broadcast_template.html"),
-        "output":       os.path.join(SCRIPT_DIR, "BUVC_Leaderboard_broadcast.html"),
-        "inject":       "club_blob",
-        "data_var":     "__BUVC_DATA__",
-        # After writing output, also overwrite this file so the GitHub Pages
-        # root URL reflects the refresh.
-        "mirror_to":    os.path.join(SCRIPT_DIR, "index.html"),
-    },
-    "nevbc": {
-        "label":        "NEVBC (Northeast Volleyball)",
-        "export_dir":   os.path.join(PARENT_DIR, "hudl_exports_nevbc"),
-        "template":     os.path.join(PARENT_DIR, "NEVBC_Leaderboard_template.html"),
-        "output":       os.path.join(PARENT_DIR, "NEVBC_Leaderboard_broadcast.html"),
-        "inject":       "club_blob",
-        "data_var":     "__NEVBC_DATA__",
-    },
-}
+import sys as _sys
+_sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from clubs import CLUBS_BUILD as CLUBS, prompt_club_choice  # noqa: E402
 
 
 # ----- Stats parsing (unchanged from BUVC builder) -----------------------
@@ -413,17 +390,7 @@ def build_club(club_key):
     return True
 
 
-def prompt_club_choice():
-    print("Which club do you want to build?")
-    print("  [1] BUVC  (Boston United)")
-    print("  [2] NEVBC (Northeast Volleyball)")
-    print("  [3] Both")
-    while True:
-        choice = input("Pick 1, 2, or 3: ").strip()
-        if choice == "1": return ["buvc"]
-        if choice == "2": return ["nevbc"]
-        if choice == "3": return ["buvc", "nevbc"]
-        print("  Please enter 1, 2, or 3.")
+# prompt_club_choice is imported from clubs.py (see top of file).
 
 
 def main():

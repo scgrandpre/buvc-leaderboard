@@ -1,29 +1,35 @@
-# BUVC Leaderboard — Modern Design
+# BUVC Leaderboard
 
-These two files replace the old `build_leaderboard.py` so running the script
-produces the new branded design (`BUVC_Leaderboard.html`) by default.
+Public web dashboard of season stats for **Boston United Volleyball Club**,
+built from Hudl exports.
 
-## Install
+**Live:** https://scgrandpre.github.io/buvc-leaderboard/
 
-Drop both files into your Hudl folder (next to `hudl_exports/`):
+## What's here
 
-    Hudl/
-      build_leaderboard.py          <-- replaces the existing one
-      Leaderboard_template.html     <-- new file (required)
-      hudl_exports/
-        ...stats.txt
+- `index.html` — root page served by GitHub Pages (currently mirrors the broadcast view)
+- `BUVC_Leaderboard_broadcast.html` — current built dashboard
+- `BUVC_Leaderboard_broadcast_template.html` — frozen template; rebuilds patch this
+- `build_leaderboard.py` — rebuilds the dashboard from Hudl stats exports
 
-## Run
+## Data & privacy
 
-    python build_leaderboard.py
+Stats are pulled from Hudl with club permission. The dashboard displays:
 
-This writes `BUVC_Leaderboard.html` — a single self-contained file that
-works offline. It includes three design directions you can switch between
-via the in-page Tweaks panel:
+- Full first + last names of rostered players (youth athletes)
+- Season-to-date aggregated stats (kills, digs, aces, attack %, etc.)
 
-  * Editorial — magazine-style masthead, podium, sortable table
-  * Cards     — trading-card top 3 + compact card grid
-  * Broadcast — dark ESPN-style dashboard with ticker
+No contact info, birthdates, or addresses. If a parent or player wants
+their name removed or displayed as first-name-only, reach out and we'll
+redeploy within the day.
 
-Click any player row/card to open a detail modal with their season stats
-and club-wide category rankings.
+## Rebuilding
+
+End-to-end workflow + pipeline details are in the parent project's
+`RUNBOOK.md` (not public). Short version:
+
+```bash
+python3 hudl_stats_exporter.py   # pick BUVC, pulls data
+python3 build_leaderboard.py     # pick BUVC, writes this file
+git add -A && git commit -m "Refresh" && git push
+```
