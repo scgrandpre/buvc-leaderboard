@@ -234,6 +234,21 @@ def parse_file(filepath, export_dir):
             "SR_TA":     SR_TA,
         })
         i += 2
+
+    # Hudl's export sometimes includes the same player twice within a
+    # single team (e.g. Northeast Girls 17.1 has two #42 rows — one with
+    # 93 sets of real season stats and another with a 2-set sliver).
+    # Dedupe by (jersey, name): keep the row with the highest SETS. This
+    # also collapses accidental duplicate 'Un-Identified' rows.
+    if players:
+        by_key = {}
+        for p in players:
+            key = (p.get("jersey") or "", p.get("name") or "")
+            existing = by_key.get(key)
+            if existing is None or (p.get("SETS") or 0) > (existing.get("SETS") or 0):
+                by_key[key] = p
+        players = list(by_key.values())
+
     return {"team": team, "gender": gender, "age": age, "players": players}
 
 
