@@ -192,6 +192,22 @@ def parse_file(filepath, export_dir):
         if not display:
             display = f"#{jersey}" if is_jersey else "Un-ID"
 
+        # Tail-stable cells (read from END of row): SETS PLAYED is always
+        # the last cell and PTS +/- is second-to-last. Reading from the end
+        # is robust against Hudl dropping BLOCK columns (BS/BA/BE/B/S) when
+        # a team hasn't verified blocks — which otherwise causes SETS=0 and
+        # hides the player from the React-rendered leaderboard.
+        def cell_from_end(offset):
+            # offset 1 = last cell, 2 = second-to-last, etc.
+            if offset < 1 or offset > len(cells):
+                return ""
+            return cells[-offset]
+
+        # Detect whether BLOCK columns are present: full row has 48 cells,
+        # a row with blocks dropped has 44. When dropped, DIG cells sit
+        # right before PTS +/-.
+        has_block_cells = len(cells) >= 44 + 4  # heuristic threshold
+
         K = _num(cell(atk_k))
         E_ = _num(cell(find("E")))
         TA = _num(cell(atk_ta))
@@ -199,8 +215,10 @@ def parse_file(filepath, export_dir):
         SE_ = _num(cell(find("SE")))
         Serve_TA = _num(cell(srv_ta))
         Serve_PCT = _num(cell(srv_pct))
-        DIG_ = _num(cell(dig_ds))
-        SETS = _num(cell(gen_sets))
+        # Count from end: SETS(-1) PTS(-2) [BLOCK×4 if present] DE(-3 or -7) DS(-4 or -8).
+        DIG_ = _num(cell_from_end(8 if has_block_cells else 4))
+        # SETS PLAYED is always the last cell.
+        SETS = _num(cell_from_end(1))
         ATK_PCT = _num(cell(atk_pct))
         KILL_PCT = _num(cell(kill_pct))
         K_S = _num(cell(ks))
