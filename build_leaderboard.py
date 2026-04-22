@@ -151,6 +151,13 @@ def parse_file(filepath, export_dir):
         for idx in range(srv_sa + 1, srv_ta_end):
             if header[idx] == "PCT":
                 srv_pct = idx; break
+    pass_pct = find("PASS%")  # Serve Receive PASS%
+    # SR TA is the "TA" column that sits just before the optional "?" then PASS%
+    sr_ta = -1
+    if pass_pct > 0:
+        for idx in range(pass_pct - 1, max(0, pass_pct - 8), -1):
+            if header[idx] == "TA":
+                sr_ta = idx; break
 
     players = []
     roster = load_roster(export_dir, team)
@@ -222,6 +229,8 @@ def parse_file(filepath, export_dir):
         ATK_PCT = _num(cell(atk_pct))
         KILL_PCT = _num(cell(kill_pct))
         K_S = _num(cell(ks))
+        PASS_PCT = _num(cell(pass_pct))
+        SR_TA = _num(cell(sr_ta))
 
         players.append({
             "name":      display,
@@ -243,6 +252,9 @@ def parse_file(filepath, export_dir):
             "SETS":      SETS,
             "K/Set":     (K / SETS) if SETS > 0 else 0.0,
             "D/Set":     (DIG_ / SETS) if SETS > 0 else 0.0,
+            "SA/Set":    (SA / SETS) if SETS > 0 else 0.0,
+            "PASS%":     PASS_PCT,
+            "SR_TA":     SR_TA,
         })
         i += 2
     return {"team": team, "gender": gender, "age": age, "players": players}
