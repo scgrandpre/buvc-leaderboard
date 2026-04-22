@@ -138,6 +138,21 @@ def parse_file(filepath, export_dir):
 
     players = []
     roster = load_roster(export_dir, team)
+
+    # Build a short-form lookup: "Claire Jan" -> "claire j." so we can
+    # upgrade stats-row names ("#2 Claire J.") to full roster names.
+    # We prefer this over jersey-based lookup because Hudl's stats
+    # tagging sometimes uses different jersey numbers than the roster
+    # page (player swaps jerseys mid-season, sub wears a different
+    # number, etc.) — trusting jersey as primary key causes us to
+    # rename "Zoey F." as "Claire Jan" when the latter is on #1 in
+    # roster but Zoey was tagged at #1 in the videos.
+    roster_shortname_lookup = {}
+    for _j, _full in roster.items():
+        parts = (_full or "").strip().split()
+        if len(parts) >= 2 and parts[-1]:
+            short = f"{parts[0]} {parts[-1][0]}.".lower()
+            roster_shortname_lookup[short] = _full
     while i < len(lines):
         name = lines[i].strip()
         if not name:
@@ -167,14 +182,23 @@ def parse_file(filepath, export_dir):
             i += 2; continue
 
         jersey = jersey_m.group(1) if is_jersey else ""
-        # Name preference: roster full name > stats inline name > "#N" > Un-ID
+        # Name preference (revised for identity correctness):
+        #   1. If the stats row has an inline name ("#2 Claire J."), it
+        #      IS the tagger's label for the person these stats belong to.
+        #      Upgrade the short form to a full name via name-match lookup
+        #      (not jersey lookup). Keep the short form as-is if no match.
+        #   2. Otherwise (bare "#42" rows), fall back to jersey->roster.
+        #   3. Un-Identified rows are labeled "Un-ID".
         display = None
-        if jersey:
-            display = roster.get(jersey)
-        if not display and name_from_stats:
-            display = name_from_stats         # e.g. "Kayah A."
-        if not display:
-            display = f"#{jersey}" if is_jersey else "Un-ID"
+        if name_from_stats:
+            display = (
+                roster_shortname_lookup.get(name_from_stats.lower())
+                or name_from_stats
+            )
+        elif jersey:
+            display = roster.get(jersey) or f"#{jersey}"
+        else:
+            display = "Un-ID"
 
         # Tail-stable cells (read from END of row): SETS PLAYED is always
         # the last cell and PTS +/- is second-to-last. Reading from the end
