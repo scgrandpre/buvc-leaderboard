@@ -372,6 +372,114 @@ def inject_club_blob(template_html, payload_json, data_var):  # noqa: same as le
 
 # ----- Per-club build ----------------------------------------------------
 
+# --- Snapshot integration ----------------------------------------------
+# Stats this tournament = current totals minus the latest snapshot.
+# Rank movement = current rank vs snapshot rank.
+
+_BUILDER_DIR = os.path.dirname(os.path.abspath(__file__))
+SNAPSHOTS_DIR = os.path.join(os.path.dirname(_BUILDER_DIR), "snapshots")
+
+# Stats we rank players on (higher = better for all of these).
+RANKED_STATS = [
+    "K", "SA", "DIG", "SETS", "TA", "Serve_TA", "SR_TA",
+    "K_Set", "D_Set", "SA_Set",   # per-set rates (note: builder writes "K/Set" but React remaps)
+    "ATK_PCT", "KILL_PCT", "Serve_PCT",
+]
+
+
+def find_latest_snapshot(club_key: str):
+    """Return path to lexicographically-latest snapshot for this club, or None."""
+    pattern = os.path.join(SNAPSHOTS_DIR, f"{club_key}_*.json")
+    files = sorted(glob.glob(pattern))
+    return files[-1] if files else None
+
+
+def _stat_value(p, stat):
+    """Read a stat off a player dict, handling builder/runtime key variants."""
+    if stat in p:
+        return p[stat] or 0
+    # Fall back to snapshot-style keys (snapshots store "K/Set" not "K_Set" etc.)
+    aliases = {"K_Set": "K/Set", "D_Set": "D/Set", "SA_Set": "SA/Set",
+               "ATK_PCT": "ATK%", "KILL_PCT": "KILL%"}
+    return p.get(aliases.get(stat, stat), 0) or 0
+
+
+def _compute_ranks(players, stats):
+    """For each stat, sort players DESC and assign ranks. Returns dict
+    keyed by 'team::name' -> {stat: rank}."""
+    ranks = {}
+    for stat in stats:
+        sortable = sorted(players, key=lambda p: _stat_value(p, stat), reverse=True)
+        for rank, p in enumerate(sortable, 1):
+            key = f"{p.get('team','')}::{p.get('name','')}"
+            ranks.setdefault(key, {})[stat] = rank
+    return ranks
+
+
+def enrich_with_snapshot(all_teams, snapshot_path):
+    """Add p.tournament, p.prevRank, p.currentRank to each player.
+    Idempotent: if no snapshot, leaves players unchanged."""
+    if not snapshot_path:
+        print("  (no snapshot found — skipping tournament enrichment)")
+        return all_teams
+
+    snap = json.load(open(snapshot_path))
+    snap_players = [p for t in snap["teams"] for p in t["players"]]
+    snap_by_key = {(p.get("team"), p.get("name")): p for p in snap_players}
+
+    prev_ranks = _compute_ranks(snap_players, RANKED_STATS)
+    cur_players = [p for t in all_teams for p in t["players"]]
+    cur_ranks = _compute_ranks(cur_players, RANKED_STATS)
+
+    enriched_players_count = 0
+    new_player_count = 0
+    for t in all_teams:
+        for p in t["players"]:
+            key = (p.get("team"), p.get("name"))
+            ranks_key = f"{p.get('team','')}::{p.get('name','')}"
+            sp = snap_by_key.get(key)
+
+            if sp is None:
+                # Player wasn't in the snapshot — they're new since the
+                # last tournament. All of their current stats are
+                # "this tournament" stats.
+                p["tournament"] = {
+                    k: p.get(k, 0) for k in (
+                        "K", "E", "TA", "SA", "SE", "DIG", "SETS",
+                        "Serve_TA", "SR_TA", "K/Set", "D/Set", "SA/Set",
+                        "ATK%", "KILL%", "Serve_PCT", "PASS%",
+                    )
+                }
+                new_player_count += 1
+            else:
+                tour = {}
+                # Volume stats: simple subtraction
+                for vol in ("K", "E", "TA", "SA", "SE", "DIG", "SETS",
+                            "Serve_TA", "SR_TA"):
+                    tour[vol] = (p.get(vol, 0) or 0) - (sp.get(vol, 0) or 0)
+                # Rates: recompute from new volume (rate diffs are meaningless)
+                sets = tour["SETS"]
+                ta   = tour["TA"]
+                sta  = tour["Serve_TA"]
+                tour["K/Set"]  = tour["K"]   / sets if sets > 0 else 0.0
+                tour["D/Set"]  = tour["DIG"] / sets if sets > 0 else 0.0
+                tour["SA/Set"] = tour["SA"]  / sets if sets > 0 else 0.0
+                tour["ATK%"]   = (tour["K"] - tour["E"]) / ta if ta > 0 else 0.0
+                tour["KILL%"]  = tour["K"] / ta if ta > 0 else 0.0
+                tour["Serve_PCT"] = ((sta - tour["SE"]) / sta) if sta > 0 else 0.0
+                # Pass rating is a per-pass average — can't subtract. Carry current.
+                tour["PASS%"] = p.get("PASS%", 0)
+                p["tournament"] = tour
+                enriched_players_count += 1
+
+            p["prevRank"]    = prev_ranks.get(ranks_key, {})
+            p["currentRank"] = cur_ranks.get(ranks_key, {})
+
+    print(f"  enriched: {enriched_players_count} returning + {new_player_count} new")
+    print(f"  baseline: {os.path.basename(snapshot_path)}")
+    return all_teams
+
+
 def build_club(club_key):
     cfg = CLUBS[club_key]
     print(f"\n=== {cfg['label']} ===")
@@ -395,6 +503,9 @@ def build_club(club_key):
     if not all_teams:
         print("  ERROR: no usable stats files found")
         return False
+
+    # Tournament + rank-movement enrichment
+    all_teams = enrich_with_snapshot(all_teams, find_latest_snapshot(club_key))
 
     payload = json.dumps(all_teams, separators=(",", ":")).replace("</", "<\\/")
 
